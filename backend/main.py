@@ -101,6 +101,9 @@ from advanced_teledermatology import router as advanced_telederm_router
 # Enhanced ML (Segmentation, Temporal Prediction, Federated Learning)
 from routers.ml_enhanced_router import router as ml_enhanced_router
 
+# Job Queue (Async Analysis)
+from routers.jobs_router import router as jobs_router
+
 # Existing router (already was separate)
 from clinic_management import router as clinic_router
 
@@ -207,6 +210,9 @@ app.include_router(advanced_telederm_router)
 
 # Enhanced ML (Segmentation, Temporal Prediction, Federated Learning)
 app.include_router(ml_enhanced_router)
+
+# Job Queue (Async Analysis)
+app.include_router(jobs_router)
 
 # =============================================================================
 # HEALTH CHECK ENDPOINTS
