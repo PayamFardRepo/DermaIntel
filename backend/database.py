@@ -723,6 +723,60 @@ class UserAlert(Base):
     user = relationship("User", backref="alerts")
 
 
+class SystemAlert(Base):
+    """
+    System Alert - Alerts for model failures, degraded performance, and system issues.
+
+    These are admin-level alerts not tied to specific users.
+    Used for monitoring ML model health and system performance.
+    """
+    __tablename__ = "system_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Alert identification
+    alert_id = Column(String, unique=True, index=True, nullable=False)  # External ID like "alert-000001"
+    alert_type = Column(String, nullable=False, index=True)  # model_failure, high_error_rate, slow_inference, etc.
+    severity = Column(String, nullable=False, index=True)  # info, warning, error, critical
+
+    # Source information
+    model_name = Column(String, index=True)  # Which model triggered the alert
+    source_component = Column(String)  # analysis_router, tasks, etc.
+
+    # Alert content
+    title = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+
+    # Metrics at time of alert
+    metrics = Column(JSON)  # Detailed metrics snapshot
+
+    # Status tracking
+    status = Column(String, default="active", index=True)  # active, acknowledged, resolved, expired
+    acknowledged = Column(Boolean, default=False)
+    acknowledged_by = Column(String)  # Username of admin who acknowledged
+    acknowledged_at = Column(DateTime)
+    resolved = Column(Boolean, default=False)
+    resolved_at = Column(DateTime)
+    resolved_by = Column(String)
+    resolution_notes = Column(Text)
+
+    # Notification tracking
+    notification_sent = Column(Boolean, default=False)
+    notification_sent_at = Column(DateTime)
+    notification_channels = Column(JSON)  # ["email", "slack", "push"]
+
+    # Deduplication
+    fingerprint = Column(String, index=True)  # Hash of alert type + model for deduplication
+    occurrence_count = Column(Integer, default=1)  # Times this alert has occurred
+    first_occurrence = Column(DateTime, default=datetime.utcnow)
+    last_occurrence = Column(DateTime, default=datetime.utcnow)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    expires_at = Column(DateTime)  # Auto-expire old alerts
+
+
 class GrowthForecast(Base):
     """
     Growth Forecast - ML-based predictions for lesion growth and changes
@@ -2862,6 +2916,15 @@ class ConsensusAssignment(Base):
     specialist = relationship("DermatologistProfile", backref="consensus_assignments")
 
 
+def migrate_system_alerts_table():
+    """Create system_alerts table if it doesn't exist."""
+    try:
+        SystemAlert.__table__.create(engine, checkfirst=True)
+        print("SystemAlert table created/verified successfully!")
+    except Exception as e:
+        print(f"Error creating SystemAlert table: {e}")
+
+
 def migrate_batch_skin_check_table():
     """Create batch_skin_checks table if it doesn't exist."""
     try:
@@ -2874,6 +2937,9 @@ def migrate_batch_skin_check_table():
 def migrate_consensus_tables():
     """Create consensus-related tables if they don't exist."""
     try:
+        # Create system alerts table
+        migrate_system_alerts_table()
+
         # Create batch skin check table
         migrate_batch_skin_check_table()
 

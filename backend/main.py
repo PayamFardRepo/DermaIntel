@@ -104,6 +104,9 @@ from routers.ml_enhanced_router import router as ml_enhanced_router
 # Job Queue (Async Analysis)
 from routers.jobs_router import router as jobs_router
 
+# Model Monitoring and Alerts
+from routers.monitoring_router import router as monitoring_router
+
 # Existing router (already was separate)
 from clinic_management import router as clinic_router
 
@@ -213,6 +216,9 @@ app.include_router(ml_enhanced_router)
 
 # Job Queue (Async Analysis)
 app.include_router(jobs_router)
+
+# Model Monitoring and Alerts
+app.include_router(monitoring_router)
 
 # =============================================================================
 # HEALTH CHECK ENDPOINTS
