@@ -39,6 +39,12 @@ from enum import Enum
 import statistics
 import json
 
+# Import structured logging
+from structured_logging import get_logger, log_model_inference
+
+# Create logger for monitoring
+logger = get_logger("ml.monitoring")
+
 
 class AlertSeverity(Enum):
     """Alert severity levels."""
@@ -449,7 +455,7 @@ class ModelMonitor:
             try:
                 callback(alert)
             except Exception as e:
-                print(f"Alert callback error: {e}")
+                logger.error("Alert callback error", extra={"error": str(e), "alert_id": alert.id})
 
         return alert
 
@@ -709,7 +715,18 @@ def record_inference(
     error: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None
 ) -> Optional[ModelAlert]:
-    """Record an inference to the global monitor."""
+    """Record an inference to the global monitor with structured logging."""
+    # Log using structured logging
+    log_model_inference(
+        model_name=model_name,
+        inference_time_ms=inference_time_ms,
+        success=success,
+        confidence=confidence,
+        error=error,
+        **(metadata or {})
+    )
+
+    # Record in monitor for alerting
     return monitor.record_inference(
         model_name=model_name,
         inference_time_ms=inference_time_ms,
@@ -794,7 +811,7 @@ def dispatch_alert_notification(alert: ModelAlert) -> None:
 
     except Exception as e:
         # Log error but don't fail the inference
-        print(f"[ALERT DISPATCH ERROR] Failed to dispatch alert: {e}")
+        logger.error("Failed to dispatch alert", extra={"error": str(e), "alert_id": alert.id})
 
 
 def _notify_admins(db, alert: ModelAlert) -> None:
@@ -826,17 +843,17 @@ def _notify_admins(db, alert: ModelAlert) -> None:
         db.commit()
 
     except Exception as e:
-        print(f"[ALERT NOTIFY ERROR] Failed to notify admins: {e}")
+        logger.error("Failed to notify admins", extra={"error": str(e), "alert_id": alert.id})
 
 
 def initialize_alert_dispatch():
     """Initialize the alert dispatch callback."""
     monitor.add_alert_callback(dispatch_alert_notification)
-    print("[MODEL MONITORING] Alert dispatch initialized")
+    logger.info("Alert dispatch initialized")
 
 
 # Auto-initialize when module is imported
 try:
     initialize_alert_dispatch()
 except Exception as e:
-    print(f"[MODEL MONITORING] Failed to initialize alert dispatch: {e}")
+    logger.warning("Failed to initialize alert dispatch", extra={"error": str(e)})

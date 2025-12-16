@@ -141,6 +141,19 @@ CORS_ALLOW_CREDENTIALS = os.getenv("CORS_ALLOW_CREDENTIALS", "True").lower() in 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE = os.getenv("LOG_FILE", str(BASE_DIR / "server.log"))
 
+# Structured logging configuration
+LOG_FORMAT = os.getenv("LOG_FORMAT", "json")  # "json" or "text"
+LOG_OUTPUT = os.getenv("LOG_OUTPUT", "stdout")  # "stdout", "file", "cloudwatch", "all"
+LOG_JSON_FILE = os.getenv("LOG_JSON_FILE", str(BASE_DIR / "logs" / "app.json.log"))
+
+# CloudWatch configuration (for LOG_OUTPUT="cloudwatch" or "all")
+CLOUDWATCH_LOG_GROUP = os.getenv("CLOUDWATCH_LOG_GROUP", "skin-classifier-logs")
+CLOUDWATCH_LOG_STREAM = os.getenv("CLOUDWATCH_LOG_STREAM", "")  # Auto-generated if empty
+
+# ELK/Elasticsearch configuration (for Filebeat ingestion)
+ELK_ENABLED = os.getenv("ELK_ENABLED", "False").lower() in ("true", "1", "yes")
+ELK_INDEX_PREFIX = os.getenv("ELK_INDEX_PREFIX", "skin-classifier")
+
 # =============================================================================
 # CELERY / REDIS CONFIGURATION
 # =============================================================================
