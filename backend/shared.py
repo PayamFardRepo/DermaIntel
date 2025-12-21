@@ -283,14 +283,21 @@ else:
     # Production mode - load real models
     # Binary lesion classifier
     print("Loading Binary Lesion Classifier...")
-    binary_model = models.resnet18(weights=None)
-    num_features = binary_model.fc.in_features
-    binary_model.fc = torch.nn.Linear(num_features, 2)
-    checkpoint = torch.load(str(BINARY_CLASSIFIER_PATH), map_location=device)
-    binary_model.load_state_dict(checkpoint["model"])
-    binary_model = binary_model.to(device)
-    binary_model.eval()
-    print(f"[OK] Binary lesion classifier loaded from {BINARY_CLASSIFIER_PATH}")
+    binary_model = None
+    try:
+        if BINARY_CLASSIFIER_PATH.exists():
+            binary_model = models.resnet18(weights=None)
+            num_features = binary_model.fc.in_features
+            binary_model.fc = torch.nn.Linear(num_features, 2)
+            checkpoint = torch.load(str(BINARY_CLASSIFIER_PATH), map_location=device)
+            binary_model.load_state_dict(checkpoint["model"])
+            binary_model = binary_model.to(device)
+            binary_model.eval()
+            print(f"[OK] Binary lesion classifier loaded from {BINARY_CLASSIFIER_PATH}")
+        else:
+            print(f"[WARN] Binary classifier not found at {BINARY_CLASSIFIER_PATH}")
+    except Exception as e:
+        print(f"[WARN] Could not load binary classifier: {e}")
 
     # ISIC 8-class model
     print("Loading ISIC 8-class Skin Lesion Classification Model...")
@@ -341,11 +348,20 @@ else:
 
     # Lesion classification model (HuggingFace)
     print("Loading Lesion Classification Model...")
-    lesion_model = AutoModelForImageClassification.from_pretrained(str(LESION_MODEL_PATH))
-    lesion_processor = AutoImageProcessor.from_pretrained(str(LESION_MODEL_PATH))
-    labels = lesion_model.config.id2label
-    lesion_model.eval()
-    print(f"[OK] Lesion classification model loaded from {LESION_MODEL_PATH}")
+    lesion_model = None
+    lesion_processor = None
+    labels = {}
+    try:
+        if LESION_MODEL_PATH.exists():
+            lesion_model = AutoModelForImageClassification.from_pretrained(str(LESION_MODEL_PATH))
+            lesion_processor = AutoImageProcessor.from_pretrained(str(LESION_MODEL_PATH))
+            labels = lesion_model.config.id2label
+            lesion_model.eval()
+            print(f"[OK] Lesion classification model loaded from {LESION_MODEL_PATH}")
+        else:
+            print(f"[WARN] Lesion model not found at {LESION_MODEL_PATH} - running without local model")
+    except Exception as e:
+        print(f"[WARN] Could not load lesion model: {e}")
 
     # DinoV2 inflammatory model
     print("Loading DinoV2 skin disease classification model...")
