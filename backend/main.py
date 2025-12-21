@@ -272,58 +272,38 @@ def read_root():
 def health_check():
     """
     Basic health check endpoint.
-    Returns system health status including database, memory, disk, and uptime.
+    Returns system health status.
     """
-    import psutil
-    import time
     from datetime import datetime
 
-    # Check database connectivity
-    db_status = "healthy"
+    # Simple health check for Railway - always return 200 OK
+    response = {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+    # Try to add database status
     try:
         from database import SessionLocal
         from sqlalchemy import text
         db = SessionLocal()
         db.execute(text("SELECT 1"))
         db.close()
+        response["database"] = "healthy"
     except Exception as e:
-        db_status = f"unhealthy: {str(e)}"
+        response["database"] = f"unhealthy: {str(e)}"
+        response["status"] = "degraded"
 
-    # Memory info
-    memory = psutil.virtual_memory()
+    # Try to add system info
+    try:
+        import psutil
+        memory = psutil.virtual_memory()
+        response["memory_used_percent"] = memory.percent
+        response["cpu_percent"] = psutil.cpu_percent(interval=0.1)
+    except Exception:
+        pass
 
-    # Disk info for uploads directory
-    disk = psutil.disk_usage(str(uploads_dir.absolute()))
-
-    # CPU info
-    cpu_percent = psutil.cpu_percent(interval=0.1)
-
-    # Uptime (process start time)
-    process = psutil.Process()
-    uptime_seconds = time.time() - process.create_time()
-    uptime_str = _format_uptime(uptime_seconds)
-
-    return {
-        "status": "healthy" if db_status == "healthy" else "degraded",
-        "timestamp": datetime.utcnow().isoformat(),
-        "database": db_status,
-        "memory": {
-            "total_gb": round(memory.total / (1024**3), 2),
-            "available_gb": round(memory.available / (1024**3), 2),
-            "used_percent": memory.percent,
-        },
-        "disk": {
-            "total_gb": round(disk.total / (1024**3), 2),
-            "free_gb": round(disk.free / (1024**3), 2),
-            "used_percent": round(disk.percent, 1),
-        },
-        "cpu": {
-            "percent": cpu_percent,
-            "cores": psutil.cpu_count(),
-        },
-        "uptime": uptime_str,
-        "uptime_seconds": round(uptime_seconds),
-    }
+    return response
 
 
 def _format_uptime(seconds: float) -> str:
