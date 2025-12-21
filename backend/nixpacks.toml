@@ -1,12 +1,5 @@
 [phases.setup]
 nixPkgs = ["python311", "gcc", "zlib", "libjpeg", "libpng", "tesseract", "poppler_utils"]
 
-[phases.install]
-cmds = [
-    "/opt/venv/bin/pip install --upgrade pip",
-    "/opt/venv/bin/pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu",
-    "/opt/venv/bin/pip install -r requirements.txt"
-]
-
 [start]
 cmd = "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"

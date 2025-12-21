@@ -1,3 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+torchaudio
+
 accelerate==1.7.0
 aiohappyeyeballs==2.6.1
 aiohttp==3.12.13
@@ -51,7 +56,6 @@ starlette==0.47.1
 sympy==1.14.0
 threadpoolctl==3.6.0
 tokenizers==0.21.1
-# torch, torchvision, torchaudio installed separately via nixpacks.toml (CPU-only)
 tqdm==4.67.1
 transformers==4.52.4
 typing-inspection==0.4.1
