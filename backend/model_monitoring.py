@@ -31,6 +31,7 @@ Usage:
 
 import time
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from collections import deque
@@ -38,6 +39,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 import statistics
 import json
+
+# Background thread pool for non-blocking monitoring
+_monitoring_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="monitoring")
 
 # Import structured logging
 from structured_logging import get_logger, log_model_inference
@@ -707,7 +711,7 @@ monitor = ModelMonitor()
 
 
 # Convenience functions
-def record_inference(
+def _record_inference_sync(
     model_name: str,
     inference_time_ms: float,
     success: bool,
@@ -715,25 +719,51 @@ def record_inference(
     error: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None
 ) -> Optional[ModelAlert]:
-    """Record an inference to the global monitor with structured logging."""
-    # Log using structured logging
-    log_model_inference(
-        model_name=model_name,
-        inference_time_ms=inference_time_ms,
-        success=success,
-        confidence=confidence,
-        error=error,
-        **(metadata or {})
-    )
+    """Synchronous implementation of record_inference (runs in background thread)."""
+    try:
+        # Log using structured logging
+        log_model_inference(
+            model_name=model_name,
+            inference_time_ms=inference_time_ms,
+            success=success,
+            confidence=confidence,
+            error=error,
+            **(metadata or {})
+        )
 
-    # Record in monitor for alerting
-    return monitor.record_inference(
-        model_name=model_name,
-        inference_time_ms=inference_time_ms,
-        success=success,
-        confidence=confidence,
-        error=error,
-        metadata=metadata
+        # Record in monitor for alerting
+        return monitor.record_inference(
+            model_name=model_name,
+            inference_time_ms=inference_time_ms,
+            success=success,
+            confidence=confidence,
+            error=error,
+            metadata=metadata
+        )
+    except Exception as e:
+        # Never let monitoring crash the main request
+        print(f"[MONITORING] Error recording inference: {e}")
+        return None
+
+
+def record_inference(
+    model_name: str,
+    inference_time_ms: float,
+    success: bool,
+    confidence: Optional[float] = None,
+    error: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None
+) -> None:
+    """Record an inference to the global monitor (non-blocking, runs in background thread)."""
+    # Submit to background thread pool - don't wait for result
+    _monitoring_executor.submit(
+        _record_inference_sync,
+        model_name,
+        inference_time_ms,
+        success,
+        confidence,
+        error,
+        metadata
     )
 
 

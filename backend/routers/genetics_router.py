@@ -1576,3 +1576,986 @@ async def trigger_risk_recalculation(
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to recalculate genetic risk profile")
+
+
+# =============================================================================
+# 23andMe / AncestryDNA UPLOAD
+# =============================================================================
+
+# Key SNPs for melanoma risk from DTC testing services
+DTC_MELANOMA_SNPS = {
+    # MC1R variants - red hair / fair skin / UV sensitivity
+    "rs1805007": {"gene": "MC1R", "risk_allele": "T", "name": "R151C", "risk_multiplier": 2.4, "condition": "Melanoma risk (fair skin)"},
+    "rs1805008": {"gene": "MC1R", "risk_allele": "T", "name": "R160W", "risk_multiplier": 2.4, "condition": "Melanoma risk (fair skin)"},
+    "rs1805009": {"gene": "MC1R", "risk_allele": "C", "name": "D294H", "risk_multiplier": 2.0, "condition": "Melanoma risk"},
+    "rs1805005": {"gene": "MC1R", "risk_allele": "T", "name": "D84E", "risk_multiplier": 1.5, "condition": "UV sensitivity"},
+    "rs2228479": {"gene": "MC1R", "risk_allele": "A", "name": "V92M", "risk_multiplier": 1.3, "condition": "UV sensitivity"},
+
+    # CDKN2A - Major melanoma susceptibility gene
+    "rs3731249": {"gene": "CDKN2A", "risk_allele": "G", "name": "A148T", "risk_multiplier": 2.5, "condition": "Familial melanoma"},
+
+    # MITF - Melanoma and renal cell carcinoma
+    "rs149617956": {"gene": "MITF", "risk_allele": "A", "name": "E318K", "risk_multiplier": 2.2, "condition": "Melanoma"},
+
+    # SLC45A2 - Pigmentation gene
+    "rs16891982": {"gene": "SLC45A2", "risk_allele": "C", "name": "L374F", "risk_multiplier": 1.3, "condition": "Light skin pigmentation"},
+
+    # TYR - Tyrosinase, pigmentation
+    "rs1126809": {"gene": "TYR", "risk_allele": "A", "name": "R402Q", "risk_multiplier": 1.2, "condition": "Light pigmentation"},
+
+    # HERC2/OCA2 - Blue eyes, fair skin
+    "rs12913832": {"gene": "HERC2", "risk_allele": "G", "name": "Blue eyes", "risk_multiplier": 1.1, "condition": "Light eye color"},
+
+    # IRF4 - Pigmentation, freckling
+    "rs12203592": {"gene": "IRF4", "risk_allele": "T", "name": "Freckling", "risk_multiplier": 1.4, "condition": "Freckling/sun sensitivity"},
+
+    # TERT - Telomerase (melanoma association)
+    "rs2736100": {"gene": "TERT", "risk_allele": "C", "name": "TERT variant", "risk_multiplier": 1.2, "condition": "Melanoma risk"},
+
+    # PARP1 - DNA repair
+    "rs1136410": {"gene": "PARP1", "risk_allele": "C", "name": "V762A", "risk_multiplier": 1.15, "condition": "DNA repair capacity"},
+
+    # ATM - DNA damage response
+    "rs1801516": {"gene": "ATM", "risk_allele": "A", "name": "D1853N", "risk_multiplier": 1.1, "condition": "DNA repair"},
+}
+
+# Pharmacogenomic SNPs relevant to dermatology
+DTC_PHARMACOGENOMIC_SNPS = {
+    # TPMT - Azathioprine metabolism
+    "rs1800460": {"gene": "TPMT", "risk_allele": "A", "name": "*3A", "drug": "Azathioprine", "effect": "Poor metabolizer - reduce dose"},
+    "rs1800462": {"gene": "TPMT", "risk_allele": "G", "name": "*2", "drug": "Azathioprine", "effect": "Poor metabolizer - reduce dose"},
+    "rs1142345": {"gene": "TPMT", "risk_allele": "C", "name": "*3C", "drug": "Azathioprine", "effect": "Poor metabolizer - reduce dose"},
+
+    # DPYD - 5-FU toxicity
+    "rs3918290": {"gene": "DPYD", "risk_allele": "A", "name": "*2A", "drug": "5-Fluorouracil", "effect": "High toxicity risk - contraindicated"},
+    "rs55886062": {"gene": "DPYD", "risk_allele": "A", "name": "*13", "drug": "5-Fluorouracil", "effect": "Reduced function"},
+
+    # NAT2 - Sulfonamide sensitivity
+    "rs1799930": {"gene": "NAT2", "risk_allele": "A", "name": "R197Q", "drug": "Sulfonamides", "effect": "Slow acetylator"},
+}
+
+
+def parse_dtc_file(file_content: str, file_format: str = "23andme") -> dict:
+    """
+    Parse 23andMe or AncestryDNA raw data files.
+
+    23andMe format: rsid\tchromosome\tposition\tgenotype
+    AncestryDNA format: rsid\tchromosome\tposition\tallele1\tallele2
+
+    Returns dict with parsed SNPs and risk assessments.
+    """
+    lines = file_content.strip().split('\n')
+
+    parsed_snps = []
+    melanoma_risk_snps = []
+    pharmacogenomic_snps = []
+    metadata = {
+        "format": file_format,
+        "total_snps": 0,
+        "melanoma_relevant_snps": 0,
+        "pharmacogenomic_snps": 0,
+    }
+
+    for line in lines:
+        # Skip comments and headers
+        if line.startswith('#') or line.startswith('rsid') or not line.strip():
+            continue
+
+        parts = line.split('\t')
+
+        if len(parts) < 4:
+            continue
+
+        rsid = parts[0].strip()
+        chromosome = parts[1].strip()
+        position = parts[2].strip()
+
+        # Parse genotype based on format
+        if file_format == "ancestrydna":
+            # AncestryDNA: rsid, chromosome, position, allele1, allele2
+            if len(parts) >= 5:
+                genotype = parts[3].strip() + parts[4].strip()
+            else:
+                continue
+        else:
+            # 23andMe: rsid, chromosome, position, genotype
+            genotype = parts[3].strip()
+
+        metadata["total_snps"] += 1
+
+        # Check if this is a melanoma risk SNP
+        if rsid in DTC_MELANOMA_SNPS:
+            snp_info = DTC_MELANOMA_SNPS[rsid]
+            risk_allele = snp_info["risk_allele"]
+            risk_allele_count = genotype.count(risk_allele)
+
+            if risk_allele_count > 0:
+                metadata["melanoma_relevant_snps"] += 1
+                melanoma_risk_snps.append({
+                    "rsid": rsid,
+                    "gene": snp_info["gene"],
+                    "name": snp_info["name"],
+                    "genotype": genotype,
+                    "risk_allele": risk_allele,
+                    "risk_allele_count": risk_allele_count,
+                    "risk_multiplier": snp_info["risk_multiplier"],
+                    "condition": snp_info["condition"],
+                    "zygosity": "homozygous" if risk_allele_count == 2 else "heterozygous",
+                })
+
+        # Check pharmacogenomic SNPs
+        if rsid in DTC_PHARMACOGENOMIC_SNPS:
+            snp_info = DTC_PHARMACOGENOMIC_SNPS[rsid]
+            risk_allele = snp_info["risk_allele"]
+
+            if risk_allele in genotype:
+                metadata["pharmacogenomic_snps"] += 1
+                pharmacogenomic_snps.append({
+                    "rsid": rsid,
+                    "gene": snp_info["gene"],
+                    "name": snp_info["name"],
+                    "genotype": genotype,
+                    "drug": snp_info["drug"],
+                    "effect": snp_info["effect"],
+                })
+
+    return {
+        "metadata": metadata,
+        "melanoma_risk_snps": melanoma_risk_snps,
+        "pharmacogenomic_snps": pharmacogenomic_snps,
+    }
+
+
+def calculate_dtc_melanoma_risk(risk_snps: list) -> dict:
+    """
+    Calculate personalized melanoma risk from DTC genetic data.
+    Uses a multiplicative model with adjustments for zygosity.
+    """
+    base_risk = 1.0  # Population average
+    contributing_factors = []
+    high_impact_genes = []
+
+    for snp in risk_snps:
+        multiplier = snp["risk_multiplier"]
+
+        # Adjust for zygosity (homozygous has higher impact)
+        if snp["zygosity"] == "homozygous":
+            adjusted_multiplier = multiplier ** 1.5  # Higher effect for homozygous
+        else:
+            adjusted_multiplier = multiplier
+
+        base_risk *= adjusted_multiplier
+
+        contributing_factors.append({
+            "gene": snp["gene"],
+            "variant": snp["name"],
+            "rsid": snp["rsid"],
+            "impact": f"{adjusted_multiplier:.2f}x",
+            "zygosity": snp["zygosity"],
+        })
+
+        if multiplier >= 2.0:
+            high_impact_genes.append(snp["gene"])
+
+    # Cap risk multiplier at reasonable levels
+    base_risk = min(base_risk, 25.0)
+
+    # Determine risk level
+    if base_risk >= 5.0:
+        risk_level = "high"
+    elif base_risk >= 2.5:
+        risk_level = "moderate_high"
+    elif base_risk >= 1.5:
+        risk_level = "moderate"
+    else:
+        risk_level = "average"
+
+    # Calculate approximate lifetime risk (using ~2% base population risk)
+    base_population_risk = 2.0  # ~2% lifetime melanoma risk
+    adjusted_lifetime_risk = min(base_population_risk * base_risk, 50.0)
+
+    return {
+        "risk_multiplier": round(base_risk, 2),
+        "risk_level": risk_level,
+        "lifetime_risk_estimate": f"{adjusted_lifetime_risk:.1f}%",
+        "contributing_factors": contributing_factors,
+        "high_impact_genes": list(set(high_impact_genes)),
+        "total_risk_variants": len(risk_snps),
+    }
+
+
+@router.post("/genetics/upload-23andme")
+async def upload_23andme_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload and analyze 23andMe raw data file for dermatology-relevant variants.
+
+    Supported file formats:
+    - 23andMe raw data (txt)
+    - AncestryDNA raw data (txt)
+
+    Extracts melanoma risk variants and pharmacogenomic markers.
+    """
+    # Validate file extension
+    allowed_extensions = ['.txt', '.csv', '.tsv']
+    file_ext = Path(file.filename).suffix.lower()
+
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file format. Allowed: {', '.join(allowed_extensions)}"
+        )
+
+    try:
+        # Read file content
+        content = await file.read()
+        content_str = content.decode('utf-8')
+
+        # Detect file format (23andMe vs AncestryDNA)
+        first_lines = content_str[:1000].lower()
+        if 'ancestrydna' in first_lines or 'ancestry' in first_lines:
+            file_format = "ancestrydna"
+        else:
+            file_format = "23andme"
+
+        # Parse the file
+        parsed = parse_dtc_file(content_str, file_format)
+
+        # Calculate melanoma risk
+        risk_assessment = calculate_dtc_melanoma_risk(parsed["melanoma_risk_snps"])
+
+        # Create test result record
+        test_id = f"DTC-{uuid.uuid4().hex[:8].upper()}"
+
+        test_result = GeneticTestResult(
+            user_id=current_user.id,
+            test_id=test_id,
+            test_type="dtc_consumer",
+            test_name=f"{file_format.title()} Raw Data Upload",
+            lab_name=file_format.title(),
+            test_date=datetime.utcnow(),
+            sample_type="saliva",
+            total_variants_tested=parsed["metadata"]["total_snps"],
+            pathogenic_variants_found=len([s for s in parsed["melanoma_risk_snps"] if s["risk_multiplier"] >= 2.0]),
+            status="completed",
+            overall_risk_level=risk_assessment["risk_level"],
+            melanoma_risk=risk_assessment,
+            risk_calculator_adjustment=risk_assessment["risk_multiplier"],
+            linked_to_risk_calculator=True,
+        )
+
+        db.add(test_result)
+        db.flush()
+
+        # Add variants to database
+        for snp in parsed["melanoma_risk_snps"]:
+            variant = GeneticVariant(
+                test_result_id=test_result.id,
+                user_id=current_user.id,
+                gene_symbol=snp["gene"],
+                rsid=snp["rsid"],
+                hgvs_p=snp["name"],
+                classification="risk_factor" if snp["risk_multiplier"] >= 2.0 else "modifier",
+                zygosity=snp["zygosity"],
+                melanoma_risk_modifier=snp["risk_multiplier"],
+                skin_condition_associations=[snp["condition"]],
+            )
+            db.add(variant)
+
+        db.commit()
+
+        return {
+            "test_id": test_id,
+            "file_processed": file.filename,
+            "file_format_detected": file_format,
+            "total_snps_in_file": parsed["metadata"]["total_snps"],
+            "melanoma_relevant_snps_found": parsed["metadata"]["melanoma_relevant_snps"],
+            "pharmacogenomic_snps_found": parsed["metadata"]["pharmacogenomic_snps"],
+            "risk_assessment": risk_assessment,
+            "pharmacogenomic_alerts": parsed["pharmacogenomic_snps"],
+            "recommendations": generate_dtc_recommendations(risk_assessment, parsed["pharmacogenomic_snps"]),
+            "message": f"Successfully analyzed {file_format.title()} genetic data"
+        }
+
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File encoding error. Please upload a UTF-8 encoded text file.")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error processing DTC file: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process genetic data: {str(e)}")
+
+
+@router.post("/genetics/upload-ancestrydna")
+async def upload_ancestrydna_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload and analyze AncestryDNA raw data file.
+    This is an alias for upload-23andme with automatic format detection.
+    """
+    return await upload_23andme_file(file, current_user, db)
+
+
+def generate_dtc_recommendations(risk_assessment: dict, pharmacogenomic_snps: list) -> list:
+    """Generate personalized recommendations based on DTC genetic analysis."""
+    recommendations = []
+
+    # Risk-based recommendations
+    risk_level = risk_assessment["risk_level"]
+
+    if risk_level in ["high", "moderate_high"]:
+        recommendations.extend([
+            "Consider consulting a dermatologist for a comprehensive skin exam",
+            "Annual full-body skin examination by a dermatologist is recommended",
+            "Monthly self-skin examinations are important for early detection",
+            "Consider genetic counseling to discuss your results and family planning",
+            "Strict sun protection measures (SPF 50+, protective clothing, seeking shade)",
+        ])
+    elif risk_level == "moderate":
+        recommendations.extend([
+            "Regular skin self-examinations (monthly)",
+            "Annual skin examination by a healthcare provider",
+            "Consistent sun protection (SPF 30+)",
+            "Avoid tanning beds and excessive sun exposure",
+        ])
+    else:
+        recommendations.extend([
+            "Regular skin self-examinations",
+            "Sun protection when outdoors (SPF 30+)",
+            "Report any new or changing moles to your doctor",
+        ])
+
+    # Pharmacogenomic recommendations
+    for snp in pharmacogenomic_snps:
+        if "5-Fluorouracil" in snp["drug"]:
+            recommendations.append(
+                f"IMPORTANT: {snp['gene']} variant detected - Discuss with oncologist before 5-FU treatment"
+            )
+        elif "Azathioprine" in snp["drug"]:
+            recommendations.append(
+                f"Note: {snp['gene']} variant may affect azathioprine dosing - Inform prescribing physician"
+            )
+
+    return recommendations
+
+
+# =============================================================================
+# FAMILY HISTORY RISK ALGORITHMS
+# =============================================================================
+
+def calculate_family_history_risk(family_members: list, user_age: int = 50) -> dict:
+    """
+    Calculate melanoma risk based on family history using validated algorithms.
+
+    Implements a weighted scoring system based on:
+    - Number of affected relatives
+    - Degree of relationship (first vs second degree)
+    - Age at diagnosis
+    - Multiple primary melanomas
+    - Pancreatic cancer (CDKN2A indicator)
+    """
+
+    # Relationship weights (first degree relatives contribute more)
+    RELATIONSHIP_WEIGHTS = {
+        "parent": 2.0,
+        "sibling": 2.0,
+        "child": 2.0,
+        "grandparent": 1.0,
+        "aunt_uncle": 1.0,
+        "cousin": 0.5,
+    }
+
+    # Initialize risk factors
+    first_degree_affected = 0
+    second_degree_affected = 0
+    total_melanomas = 0
+    early_onset_cases = 0  # Diagnosed < 40
+    multiple_primary_cases = 0  # Individual with 2+ melanomas
+    bilateral_lineage = {"maternal": False, "paternal": False}
+
+    for member in family_members:
+        if not member.has_melanoma and not member.has_skin_cancer:
+            continue
+
+        relationship = member.relationship_type
+        side = member.relationship_side
+
+        # Count by degree
+        if relationship in ["parent", "sibling", "child"]:
+            first_degree_affected += 1
+        else:
+            second_degree_affected += 1
+
+        # Track melanoma specifics
+        if member.has_melanoma:
+            total_melanomas += member.melanoma_count or 1
+
+            if member.melanoma_count and member.melanoma_count >= 2:
+                multiple_primary_cases += 1
+
+            if member.earliest_diagnosis_age and member.earliest_diagnosis_age < 40:
+                early_onset_cases += 1
+
+        # Track bilateral inheritance
+        if side == "maternal":
+            bilateral_lineage["maternal"] = True
+        elif side == "paternal":
+            bilateral_lineage["paternal"] = True
+
+    # Calculate risk multiplier using validated model
+    # Base: 1x for no family history
+    risk_multiplier = 1.0
+
+    # First-degree relatives: ~2x per affected member, up to 8x
+    if first_degree_affected > 0:
+        risk_multiplier *= min(2.0 ** first_degree_affected, 8.0)
+
+    # Second-degree relatives: ~1.5x per affected member, up to 3x additional
+    if second_degree_affected > 0:
+        risk_multiplier *= min(1.5 ** min(second_degree_affected, 3), 3.0)
+
+    # Early onset modifier (+50% per case)
+    if early_onset_cases > 0:
+        risk_multiplier *= (1.0 + 0.5 * min(early_onset_cases, 3))
+
+    # Multiple primary melanomas indicator (+30% per case)
+    if multiple_primary_cases > 0:
+        risk_multiplier *= (1.0 + 0.3 * min(multiple_primary_cases, 3))
+
+    # Bilateral inheritance (both sides affected) +50%
+    if bilateral_lineage["maternal"] and bilateral_lineage["paternal"]:
+        risk_multiplier *= 1.5
+
+    # Cap at reasonable maximum
+    risk_multiplier = min(risk_multiplier, 20.0)
+
+    # Determine risk level
+    if risk_multiplier >= 8.0:
+        risk_level = "very_high"
+        familial_syndrome_suspected = True
+    elif risk_multiplier >= 4.0:
+        risk_level = "high"
+        familial_syndrome_suspected = first_degree_affected >= 2 or early_onset_cases >= 2
+    elif risk_multiplier >= 2.0:
+        risk_level = "moderate"
+        familial_syndrome_suspected = False
+    else:
+        risk_level = "average"
+        familial_syndrome_suspected = False
+
+    # Determine inheritance pattern
+    if bilateral_lineage["maternal"] and bilateral_lineage["paternal"]:
+        inheritance_pattern = "bilateral"
+    elif bilateral_lineage["maternal"]:
+        inheritance_pattern = "maternal"
+    elif bilateral_lineage["paternal"]:
+        inheritance_pattern = "paternal"
+    else:
+        inheritance_pattern = "sporadic"
+
+    # Calculate family history score (0-100)
+    family_score = min(100, (risk_multiplier - 1) * 12.5)
+
+    return {
+        "risk_multiplier": round(risk_multiplier, 2),
+        "risk_level": risk_level,
+        "family_history_score": round(family_score, 1),
+        "first_degree_affected": first_degree_affected,
+        "second_degree_affected": second_degree_affected,
+        "total_melanomas_in_family": total_melanomas,
+        "early_onset_cases": early_onset_cases,
+        "multiple_primary_cases": multiple_primary_cases,
+        "inheritance_pattern": inheritance_pattern,
+        "bilateral_inheritance": bilateral_lineage["maternal"] and bilateral_lineage["paternal"],
+        "familial_melanoma_syndrome_suspected": familial_syndrome_suspected,
+        "genetic_testing_recommended": risk_level in ["high", "very_high"] or familial_syndrome_suspected,
+    }
+
+
+@router.get("/genetics/family-risk-assessment")
+async def get_family_risk_assessment(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Calculate comprehensive melanoma risk based on family history.
+
+    Uses validated family history algorithms to assess:
+    - Risk multiplier vs general population
+    - Likelihood of familial melanoma syndrome
+    - Recommendation for genetic testing
+    """
+    # Get family members
+    family_members = db.query(FamilyMember).filter(
+        FamilyMember.user_id == current_user.id
+    ).all()
+
+    if not family_members:
+        return {
+            "has_family_data": False,
+            "message": "No family history data found. Add family members to calculate risk.",
+            "risk_multiplier": 1.0,
+            "risk_level": "unknown",
+        }
+
+    # Calculate risk
+    risk_assessment = calculate_family_history_risk(family_members)
+
+    # Add family summary statistics
+    total_members = len(family_members)
+    affected_members = len([m for m in family_members if m.has_melanoma or m.has_skin_cancer])
+
+    return {
+        "has_family_data": True,
+        "family_summary": {
+            "total_family_members": total_members,
+            "affected_members": affected_members,
+            "percentage_affected": round(affected_members / total_members * 100, 1) if total_members > 0 else 0,
+        },
+        "risk_assessment": risk_assessment,
+        "recommendations": generate_family_risk_recommendations(risk_assessment),
+    }
+
+
+def generate_family_risk_recommendations(risk_assessment: dict) -> list:
+    """Generate recommendations based on family history risk assessment."""
+    recommendations = []
+
+    risk_level = risk_assessment["risk_level"]
+
+    if risk_level == "very_high":
+        recommendations.extend([
+            "STRONGLY RECOMMENDED: Genetic counseling and testing for melanoma susceptibility genes (CDKN2A, CDK4, BAP1)",
+            "Dermatology evaluation every 3-6 months",
+            "Consider total body photography for mole monitoring",
+            "Pancreatic cancer screening may be indicated (consult gastroenterologist)",
+            "Ophthalmologic examination for uveal melanoma screening",
+            "Discuss with family members about their screening needs",
+        ])
+    elif risk_level == "high":
+        recommendations.extend([
+            "Consider genetic counseling to discuss testing options",
+            "Dermatology examination every 6 months",
+            "Monthly self-skin examinations with ABCDE criteria",
+            "Aggressive sun protection (SPF 50+, protective clothing)",
+            "Consider dermoscopy/mole mapping",
+        ])
+    elif risk_level == "moderate":
+        recommendations.extend([
+            "Annual dermatology examination",
+            "Monthly self-skin examinations",
+            "Consistent sun protection (SPF 30+)",
+            "Report any new or changing moles promptly",
+        ])
+    else:
+        recommendations.extend([
+            "Annual skin self-examination",
+            "Sun protection when outdoors",
+            "Know the ABCDE criteria for melanoma detection",
+        ])
+
+    if risk_assessment["familial_melanoma_syndrome_suspected"]:
+        recommendations.insert(0, "Pattern suggests possible familial melanoma syndrome - genetic evaluation recommended")
+
+    return recommendations
+
+
+# =============================================================================
+# PERSONALIZED SCREENING SCHEDULES
+# =============================================================================
+
+@router.get("/genetics/screening-schedule")
+async def get_personalized_screening_schedule(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a personalized skin cancer screening schedule based on:
+    - Genetic test results
+    - Family history
+    - Personal risk factors
+
+    Returns specific recommendations for screening frequency and types.
+    """
+    # Get genetic risk data
+    genetic_tests = db.query(GeneticTestResult).filter(
+        GeneticTestResult.user_id == current_user.id,
+        GeneticTestResult.status == "completed"
+    ).all()
+
+    # Get family history
+    family_members = db.query(FamilyMember).filter(
+        FamilyMember.user_id == current_user.id
+    ).all()
+
+    # Get genetic risk profile if exists
+    try:
+        from database import GeneticRiskProfile
+        risk_profile = db.query(GeneticRiskProfile).filter(
+            GeneticRiskProfile.user_id == current_user.id
+        ).first()
+    except:
+        risk_profile = None
+
+    # Calculate combined risk score
+    genetic_risk_multiplier = 1.0
+    family_risk_multiplier = 1.0
+    high_risk_genes = []
+
+    # Get genetic risk
+    for test in genetic_tests:
+        if test.risk_calculator_adjustment:
+            genetic_risk_multiplier = max(genetic_risk_multiplier, test.risk_calculator_adjustment)
+        if test.melanoma_risk and isinstance(test.melanoma_risk, dict):
+            if test.melanoma_risk.get("high_impact_genes"):
+                high_risk_genes.extend(test.melanoma_risk["high_impact_genes"])
+
+    # Get family risk
+    if family_members:
+        family_assessment = calculate_family_history_risk(family_members)
+        family_risk_multiplier = family_assessment["risk_multiplier"]
+
+    # Combined risk
+    combined_multiplier = max(genetic_risk_multiplier, family_risk_multiplier)
+
+    # Determine screening schedule
+    schedule = generate_screening_schedule(
+        combined_multiplier,
+        high_risk_genes,
+        family_members,
+        genetic_tests
+    )
+
+    return {
+        "personalized_schedule": schedule,
+        "risk_factors": {
+            "genetic_risk_multiplier": round(genetic_risk_multiplier, 2),
+            "family_risk_multiplier": round(family_risk_multiplier, 2),
+            "combined_multiplier": round(combined_multiplier, 2),
+            "high_risk_genes_identified": list(set(high_risk_genes)),
+        },
+        "data_sources": {
+            "genetic_tests_analyzed": len(genetic_tests),
+            "family_members_recorded": len(family_members),
+        }
+    }
+
+
+def generate_screening_schedule(
+    risk_multiplier: float,
+    high_risk_genes: list,
+    family_members: list,
+    genetic_tests: list
+) -> dict:
+    """
+    Generate personalized screening schedule based on risk profile.
+    """
+
+    # Determine risk tier
+    if risk_multiplier >= 8.0 or "CDKN2A" in high_risk_genes or "BAP1" in high_risk_genes:
+        risk_tier = "very_high"
+    elif risk_multiplier >= 4.0 or len([g for g in high_risk_genes if g in ["MC1R", "MITF"]]) >= 2:
+        risk_tier = "high"
+    elif risk_multiplier >= 2.0:
+        risk_tier = "moderate"
+    else:
+        risk_tier = "average"
+
+    # Base schedule templates
+    schedules = {
+        "very_high": {
+            "professional_skin_exam": {
+                "frequency": "Every 3-4 months",
+                "provider": "Dermatologist (preferably melanoma specialist)",
+                "notes": "Full-body examination with dermoscopy",
+            },
+            "self_examination": {
+                "frequency": "Monthly",
+                "method": "Full-body examination using ABCDE criteria and photography",
+            },
+            "dermoscopy_monitoring": {
+                "frequency": "Every 3-6 months",
+                "notes": "Sequential digital dermoscopy for changing lesions",
+            },
+            "total_body_photography": {
+                "recommended": True,
+                "frequency": "Annually (baseline then comparison)",
+            },
+            "genetic_counseling": {
+                "recommended": True,
+                "frequency": "Initial + as needed",
+                "notes": "Discuss family testing and cancer surveillance",
+            },
+            "eye_examination": {
+                "recommended": True,
+                "frequency": "Annually",
+                "provider": "Ophthalmologist",
+                "notes": "Uveal melanoma screening (especially for BAP1 carriers)",
+            },
+            "additional_screenings": [
+                "Consider pancreatic cancer surveillance if CDKN2A positive",
+                "MRI/CT as recommended by oncologist for syndromic cases",
+            ],
+        },
+        "high": {
+            "professional_skin_exam": {
+                "frequency": "Every 6 months",
+                "provider": "Dermatologist",
+                "notes": "Full-body examination with dermoscopy",
+            },
+            "self_examination": {
+                "frequency": "Monthly",
+                "method": "Full-body examination using ABCDE criteria",
+            },
+            "dermoscopy_monitoring": {
+                "frequency": "Every 6-12 months",
+                "notes": "For atypical moles",
+            },
+            "total_body_photography": {
+                "recommended": True,
+                "frequency": "Every 1-2 years",
+            },
+            "genetic_counseling": {
+                "recommended": True,
+                "frequency": "Consider initial consultation",
+            },
+        },
+        "moderate": {
+            "professional_skin_exam": {
+                "frequency": "Annually",
+                "provider": "Dermatologist or trained primary care",
+                "notes": "Full-body examination",
+            },
+            "self_examination": {
+                "frequency": "Monthly",
+                "method": "ABCDE criteria check",
+            },
+            "dermoscopy_monitoring": {
+                "frequency": "As needed for concerning lesions",
+            },
+        },
+        "average": {
+            "professional_skin_exam": {
+                "frequency": "Annually or biannually",
+                "provider": "Primary care or dermatologist",
+            },
+            "self_examination": {
+                "frequency": "Every 1-3 months",
+                "method": "ABCDE criteria for new/changing moles",
+            },
+        },
+    }
+
+    schedule = schedules.get(risk_tier, schedules["average"])
+
+    # Add personalized notes
+    schedule["risk_tier"] = risk_tier
+    schedule["next_steps"] = generate_next_steps(risk_tier, high_risk_genes, genetic_tests)
+
+    # Calculate next screening dates
+    from datetime import date, timedelta
+    today = date.today()
+
+    if risk_tier == "very_high":
+        schedule["next_professional_exam"] = (today + timedelta(days=90)).isoformat()
+    elif risk_tier == "high":
+        schedule["next_professional_exam"] = (today + timedelta(days=180)).isoformat()
+    else:
+        schedule["next_professional_exam"] = (today + timedelta(days=365)).isoformat()
+
+    schedule["next_self_exam"] = (today + timedelta(days=30)).isoformat()
+
+    return schedule
+
+
+def generate_next_steps(risk_tier: str, high_risk_genes: list, genetic_tests: list) -> list:
+    """Generate actionable next steps based on risk assessment."""
+    next_steps = []
+
+    if risk_tier in ["very_high", "high"]:
+        next_steps.append("Schedule an appointment with a dermatologist within 1 month")
+
+        if not genetic_tests:
+            next_steps.append("Consider genetic testing for melanoma susceptibility genes")
+
+        if "CDKN2A" in high_risk_genes:
+            next_steps.append("Discuss pancreatic cancer screening with your doctor")
+
+        if "BAP1" in high_risk_genes:
+            next_steps.append("Schedule ophthalmologic examination for uveal melanoma screening")
+
+    elif risk_tier == "moderate":
+        next_steps.append("Schedule annual dermatology examination")
+        next_steps.append("Learn proper skin self-examination technique")
+
+    else:
+        next_steps.append("Perform regular skin self-examinations")
+        next_steps.append("Use sun protection consistently")
+
+    # Universal recommendations
+    next_steps.extend([
+        "Avoid indoor tanning",
+        "Report any new or changing moles to your healthcare provider",
+    ])
+
+    return next_steps
+
+
+@router.post("/genetics/generate-full-risk-report")
+async def generate_full_risk_report(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a comprehensive genetic risk report combining all available data:
+    - Genetic test results
+    - Family history analysis
+    - Personalized screening schedule
+    - Actionable recommendations
+    """
+    # Get all data sources
+    genetic_tests = db.query(GeneticTestResult).filter(
+        GeneticTestResult.user_id == current_user.id,
+        GeneticTestResult.status == "completed"
+    ).all()
+
+    family_members = db.query(FamilyMember).filter(
+        FamilyMember.user_id == current_user.id
+    ).all()
+
+    pathogenic_variants = db.query(GeneticVariant).filter(
+        GeneticVariant.user_id == current_user.id,
+        GeneticVariant.classification.in_(["pathogenic", "likely_pathogenic", "risk_factor"])
+    ).all()
+
+    # Calculate risks
+    family_risk = calculate_family_history_risk(family_members) if family_members else None
+
+    # Get genetic risk from tests
+    genetic_risk_multiplier = 1.0
+    high_risk_genes = []
+    pharmacogenomic_alerts = []
+
+    for test in genetic_tests:
+        if test.risk_calculator_adjustment:
+            genetic_risk_multiplier = max(genetic_risk_multiplier, test.risk_calculator_adjustment)
+
+    for variant in pathogenic_variants:
+        if variant.gene_symbol:
+            gene_info = DERMATOLOGY_GENES.get(variant.gene_symbol, {})
+            if gene_info.get("melanoma_risk_multiplier", 0) >= 2.0:
+                high_risk_genes.append(variant.gene_symbol)
+            if gene_info.get("category") == "pharmacogenomics":
+                pharmacogenomic_alerts.append({
+                    "gene": variant.gene_symbol,
+                    "variant": variant.hgvs_p,
+                    "implications": gene_info.get("drug_implications", gene_info.get("risk_increase", "Drug interaction possible")),
+                })
+
+    # Combined risk assessment
+    combined_multiplier = max(
+        genetic_risk_multiplier,
+        family_risk["risk_multiplier"] if family_risk else 1.0
+    )
+
+    # Generate screening schedule
+    screening = generate_screening_schedule(
+        combined_multiplier,
+        high_risk_genes,
+        family_members,
+        genetic_tests
+    )
+
+    # Compile report
+    report = {
+        "report_date": datetime.utcnow().isoformat(),
+        "summary": {
+            "overall_risk_level": screening["risk_tier"],
+            "combined_risk_multiplier": round(combined_multiplier, 2),
+            "genetic_risk_multiplier": round(genetic_risk_multiplier, 2),
+            "family_risk_multiplier": round(family_risk["risk_multiplier"], 2) if family_risk else 1.0,
+            "high_risk_genes_identified": list(set(high_risk_genes)),
+        },
+        "data_completeness": {
+            "has_genetic_tests": len(genetic_tests) > 0,
+            "genetic_test_count": len(genetic_tests),
+            "has_family_history": len(family_members) > 0,
+            "family_members_recorded": len(family_members),
+            "pathogenic_variants_found": len(pathogenic_variants),
+        },
+        "genetic_findings": {
+            "test_count": len(genetic_tests),
+            "pathogenic_variants": len(pathogenic_variants),
+            "high_impact_genes": list(set(high_risk_genes)),
+            "variants_summary": [
+                {
+                    "gene": v.gene_symbol,
+                    "classification": v.classification,
+                    "rsid": v.rsid,
+                }
+                for v in pathogenic_variants[:10]  # Top 10
+            ],
+        },
+        "family_history_analysis": family_risk if family_risk else {"message": "No family history data available"},
+        "pharmacogenomic_alerts": pharmacogenomic_alerts,
+        "screening_schedule": screening,
+        "recommendations": {
+            "immediate": generate_immediate_recommendations(screening["risk_tier"], high_risk_genes),
+            "ongoing": generate_ongoing_recommendations(screening["risk_tier"]),
+            "genetic_counseling": screening["risk_tier"] in ["very_high", "high"] or len(high_risk_genes) > 0,
+        },
+    }
+
+    return report
+
+
+def generate_immediate_recommendations(risk_tier: str, high_risk_genes: list) -> list:
+    """Generate immediate action recommendations."""
+    recommendations = []
+
+    if risk_tier == "very_high":
+        recommendations.extend([
+            "Schedule dermatology appointment within 2-4 weeks",
+            "Request referral to melanoma specialist if not already seeing one",
+            "Schedule genetic counseling appointment",
+        ])
+        if "BAP1" in high_risk_genes:
+            recommendations.append("Schedule ophthalmology appointment for uveal melanoma screening")
+        if "CDKN2A" in high_risk_genes:
+            recommendations.append("Discuss pancreatic cancer surveillance with oncologist")
+
+    elif risk_tier == "high":
+        recommendations.extend([
+            "Schedule dermatology appointment within 1-2 months",
+            "Consider genetic counseling consultation",
+        ])
+
+    elif risk_tier == "moderate":
+        recommendations.append("Schedule annual dermatology examination if not done in past year")
+
+    return recommendations
+
+
+def generate_ongoing_recommendations(risk_tier: str) -> list:
+    """Generate ongoing care recommendations."""
+    base_recommendations = [
+        "Perform monthly skin self-examinations",
+        "Use broad-spectrum SPF 30+ sunscreen daily",
+        "Wear protective clothing and seek shade when outdoors",
+        "Avoid tanning beds and excessive sun exposure",
+        "Document and photograph any concerning moles for comparison",
+    ]
+
+    if risk_tier in ["very_high", "high"]:
+        base_recommendations.extend([
+            "Keep all follow-up appointments with dermatology",
+            "Report any new or changing lesions immediately",
+            "Consider sharing genetic information with at-risk family members",
+        ])
+
+    return base_recommendations

@@ -22,11 +22,14 @@ import io
 from database import get_db, User, AnalysisHistory, UserProfile, LesionGroup
 from auth import get_current_active_user
 
-# Import model monitoring
+# Import model monitoring (now non-blocking)
 from model_monitoring import record_inference
 
 # Import multimodal analyzer
 from multimodal_analyzer import MultimodalAnalyzer, perform_multimodal_analysis
+
+# Import ABCDE feature analysis
+from abcde_feature_analysis import perform_abcde_analysis, format_abcde_for_response, build_combined_assessment
 
 # Import shared ML components
 import shared
@@ -525,6 +528,40 @@ async def full_classify(
             debug_log(f"Multimodal analysis error: {e}")
             multimodal_result = {"error": str(e), "multimodal_analysis": {"enabled": False}}
 
+    # =========================================================================
+    # ABCDE FEATURE ANALYSIS
+    # Quantitative analysis of traditional dermoscopy criteria
+    # =========================================================================
+    abcde_result = None
+    combined_assessment = None
+    try:
+        # Perform ABCDE analysis
+        abcde_analysis = perform_abcde_analysis(
+            image=image,
+            pixels_per_mm=None,  # No calibration by default
+            previous_image=None,
+            previous_analysis=None
+        )
+        abcde_result = format_abcde_for_response(abcde_analysis)
+
+        # Build combined assessment integrating ML and image features
+        combined_assessment = build_combined_assessment(
+            abcde_analysis=abcde_result,
+            ml_classification=predicted_class,
+            ml_confidence=lesion_confidence
+        )
+
+        # Update risk level if combined assessment indicates higher risk
+        combined_risk = combined_assessment.get("combined_assessment", {}).get("overall_risk_level")
+        if combined_risk:
+            risk_order = {"low": 0, "moderate": 1, "medium": 1, "high": 2, "very_high": 3}
+            if risk_order.get(combined_risk, 0) > risk_order.get(risk_level, 0):
+                risk_level = combined_risk
+
+    except Exception as e:
+        debug_log(f"ABCDE analysis error: {e}")
+        abcde_result = {"error": str(e)}
+
     # Save to database
     analysis_record = None
     if save_to_db:
@@ -535,39 +572,42 @@ async def full_classify(
         # Extract multimodal tracking data
         mm_data = multimodal_result.get("multimodal_analysis", {}) if multimodal_result else {}
 
+        # Sanitize all values to convert numpy types to native Python types for JSON serialization
         analysis_record = AnalysisHistory(
             user_id=current_user.id,
             image_filename=file.filename,
             image_url=f"/uploads/{Path(image_path).name}",
             analysis_type="full",
-            is_lesion=is_lesion,
-            binary_confidence=binary_confidence,
-            binary_probabilities=binary_result,
+            is_lesion=sanitize_for_json(is_lesion),
+            binary_confidence=sanitize_for_json(binary_confidence),
+            binary_probabilities=sanitize_for_json(binary_result),
             predicted_class=predicted_class,
-            lesion_confidence=lesion_confidence,
-            lesion_probabilities=probabilities,
+            lesion_confidence=sanitize_for_json(lesion_confidence),
+            lesion_probabilities=sanitize_for_json(probabilities),
             risk_level=risk_level,
-            image_quality_score=quality_assessment['score'],
-            image_quality_passed=quality_assessment['passed'],
-            quality_issues=quality_assessment,
-            processing_time_seconds=processing_time,
+            image_quality_score=sanitize_for_json(quality_assessment['score']),
+            image_quality_passed=sanitize_for_json(quality_assessment['passed']),
+            quality_issues=sanitize_for_json(quality_assessment),
+            processing_time_seconds=sanitize_for_json(processing_time),
             model_version="full_classify_v2.0",
             body_location=body_location,
             body_sublocation=body_sublocation,
             body_side=body_side,
-            body_map_coordinates=body_map_coords,
+            body_map_coordinates=sanitize_for_json(body_map_coords),
             lesion_group_id=lesion_group_id,
             # Multimodal tracking fields
-            multimodal_enabled=enable_multimodal,
-            labs_integrated=mm_data.get("lab_adjustments", {}).get("applied", False),
-            history_integrated=mm_data.get("clinical_adjustments", {}).get("applied", False),
-            confidence_adjustments=mm_data.get("confidence_breakdown"),
-            data_sources_used=mm_data.get("data_sources"),
-            raw_image_confidence=mm_data.get("image_analysis", {}).get("raw_confidence"),
-            clinical_adjustment_delta=mm_data.get("clinical_adjustments", {}).get("confidence_delta"),
-            lab_adjustment_delta=mm_data.get("lab_adjustments", {}).get("confidence_delta"),
-            multimodal_risk_factors=multimodal_result.get("risk_factors") if multimodal_result else None,
-            multimodal_recommendations=multimodal_result.get("recommendations") if multimodal_result else None
+            multimodal_enabled=sanitize_for_json(enable_multimodal),
+            labs_integrated=sanitize_for_json(mm_data.get("lab_adjustments", {}).get("applied", False)),
+            history_integrated=sanitize_for_json(mm_data.get("clinical_adjustments", {}).get("applied", False)),
+            confidence_adjustments=sanitize_for_json(mm_data.get("confidence_breakdown")),
+            data_sources_used=sanitize_for_json(mm_data.get("data_sources")),
+            raw_image_confidence=sanitize_for_json(mm_data.get("image_analysis", {}).get("raw_confidence")),
+            clinical_adjustment_delta=sanitize_for_json(mm_data.get("clinical_adjustments", {}).get("confidence_delta")),
+            lab_adjustment_delta=sanitize_for_json(mm_data.get("lab_adjustments", {}).get("confidence_delta")),
+            multimodal_risk_factors=sanitize_for_json(multimodal_result.get("risk_factors") if multimodal_result else None),
+            multimodal_recommendations=sanitize_for_json(multimodal_result.get("recommendations") if multimodal_result else None),
+            # ABCDE analysis data
+            red_flag_data=sanitize_for_json(abcde_result if abcde_result and "error" not in abcde_result else None)
         )
 
         db.add(analysis_record)
@@ -681,6 +721,17 @@ async def full_classify(
 
         # Malignancy info
         "is_malignant": is_malignant,
+
+        # ABCDE Feature Analysis
+        "abcde_analysis": abcde_result if abcde_result and "error" not in abcde_result else None,
+        "combined_assessment": combined_assessment if combined_assessment else None,
+
+        # For backward compatibility - flat ABCDE scores
+        "asymmetry_score": abcde_result.get("asymmetry", {}).get("overall_score") if abcde_result and "error" not in abcde_result else None,
+        "border_score": abcde_result.get("border", {}).get("overall_score") if abcde_result and "error" not in abcde_result else None,
+        "color_score": abcde_result.get("color", {}).get("overall_score") if abcde_result and "error" not in abcde_result else None,
+        "diameter_score": abcde_result.get("diameter", {}).get("overall_score") if abcde_result and "error" not in abcde_result else None,
+        "total_dermoscopy_score": abcde_result.get("total_score") if abcde_result and "error" not in abcde_result else None,
     })
 
 
@@ -1256,3 +1307,769 @@ async def view_shared_analysis(
     """
 
     return HTMLResponse(content=html_content)
+
+
+# =============================================================================
+# FHIR EXPORT ENDPOINT
+# =============================================================================
+
+def generate_fhir_report(analysis: AnalysisHistory, user: User) -> dict:
+    """Generate FHIR R4 DiagnosticReport resource."""
+    from datetime import datetime
+    import uuid
+
+    # Map predicted class to SNOMED codes
+    snomed_mappings = {
+        "Melanoma": {"code": "372244006", "display": "Malignant melanoma"},
+        "Basal Cell Carcinoma": {"code": "254701007", "display": "Basal cell carcinoma of skin"},
+        "Squamous Cell Carcinoma": {"code": "402815007", "display": "Squamous cell carcinoma of skin"},
+        "Actinic Keratoses": {"code": "201101007", "display": "Actinic keratosis"},
+        "Benign Keratosis": {"code": "400010006", "display": "Seborrheic keratosis"},
+        "Dermatofibroma": {"code": "254788002", "display": "Dermatofibroma"},
+        "Melanocytic Nevi": {"code": "398943008", "display": "Melanocytic nevus"},
+        "Vascular Lesions": {"code": "400210000", "display": "Hemangioma"},
+    }
+
+    snomed = snomed_mappings.get(
+        analysis.predicted_class,
+        {"code": "95320005", "display": "Disorder of skin"}
+    )
+
+    # Risk level to FHIR interpretation
+    risk_interpretations = {
+        "low": {"code": "L", "display": "Low"},
+        "medium": {"code": "N", "display": "Normal"},
+        "high": {"code": "H", "display": "High"},
+        "very_high": {"code": "HH", "display": "Critical high"}
+    }
+
+    interpretation = risk_interpretations.get(
+        analysis.risk_level,
+        {"code": "N", "display": "Normal"}
+    )
+
+    fhir_report = {
+        "resourceType": "DiagnosticReport",
+        "id": str(uuid.uuid4()),
+        "meta": {
+            "versionId": "1",
+            "lastUpdated": datetime.utcnow().isoformat() + "Z",
+            "profile": ["http://hl7.org/fhir/us/core/StructureDefinition/us-core-diagnosticreport-note"]
+        },
+        "identifier": [{
+            "system": "urn:skin-analyzer:analysis",
+            "value": str(analysis.id)
+        }],
+        "status": "final",
+        "category": [{
+            "coding": [{
+                "system": "http://terminology.hl7.org/CodeSystem/v2-0074",
+                "code": "IMG",
+                "display": "Diagnostic Imaging"
+            }]
+        }],
+        "code": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": "72170-4",
+                "display": "Photographic image"
+            }],
+            "text": "AI Skin Lesion Analysis"
+        },
+        "subject": {
+            "reference": f"Patient/{user.id}",
+            "display": user.email
+        },
+        "effectiveDateTime": analysis.created_at.isoformat() + "Z",
+        "issued": datetime.utcnow().isoformat() + "Z",
+        "conclusion": f"AI Classification: {analysis.predicted_class} ({(analysis.lesion_confidence or 0) * 100:.1f}% confidence). Risk Level: {analysis.risk_level}",
+        "conclusionCode": [{
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": snomed["code"],
+                "display": snomed["display"]
+            }],
+            "text": analysis.predicted_class
+        }],
+        "result": [{
+            "reference": f"#confidence-observation",
+            "display": f"Confidence: {(analysis.lesion_confidence or 0) * 100:.1f}%"
+        }],
+        "contained": [{
+            "resourceType": "Observation",
+            "id": "confidence-observation",
+            "status": "final",
+            "code": {
+                "coding": [{
+                    "system": "http://loinc.org",
+                    "code": "59776-5",
+                    "display": "Procedure finding"
+                }]
+            },
+            "valueQuantity": {
+                "value": round((analysis.lesion_confidence or 0) * 100, 1),
+                "unit": "%",
+                "system": "http://unitsofmeasure.org",
+                "code": "%"
+            },
+            "interpretation": [{
+                "coding": [{
+                    "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+                    "code": interpretation["code"],
+                    "display": interpretation["display"]
+                }]
+            }]
+        }],
+        "extension": [{
+            "url": "http://skin-analyzer.com/fhir/StructureDefinition/ai-analysis",
+            "extension": [
+                {
+                    "url": "modelVersion",
+                    "valueString": analysis.model_version or "unknown"
+                },
+                {
+                    "url": "analysisType",
+                    "valueString": analysis.analysis_type or "full"
+                },
+                {
+                    "url": "isLesion",
+                    "valueBoolean": analysis.is_lesion or False
+                },
+                {
+                    "url": "bodyLocation",
+                    "valueString": analysis.body_location or "unspecified"
+                }
+            ]
+        }]
+    }
+
+    return fhir_report
+
+
+@router.get("/analysis/export/fhir/{analysis_id}")
+def export_analysis_fhir(
+    analysis_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Export analysis report in HL7 FHIR R4 format for EMR integration.
+
+    FHIR (Fast Healthcare Interoperability Resources) is the international
+    standard for exchanging healthcare information electronically.
+
+    Returns:
+        JSONResponse: FHIR DiagnosticReport resource
+    """
+    from fastapi.responses import JSONResponse
+
+    analysis = db.query(AnalysisHistory).filter(
+        AnalysisHistory.id == analysis_id,
+        AnalysisHistory.user_id == current_user.id
+    ).first()
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    try:
+        fhir_report = generate_fhir_report(analysis, current_user)
+        return JSONResponse(
+            content=fhir_report,
+            media_type="application/fhir+json",
+            headers={
+                "Content-Disposition": f"attachment; filename=fhir-report-{analysis_id}.json"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate FHIR report: {str(e)}")
+
+
+# =============================================================================
+# SYMPTOMS, MEDICATIONS, MEDICAL HISTORY ENDPOINTS
+# =============================================================================
+
+@router.post("/analysis/symptoms/{analysis_id}")
+async def add_symptoms(
+    analysis_id: int,
+    symptom_duration: str = Form(None),
+    symptom_duration_value: int = Form(None),
+    symptom_duration_unit: str = Form(None),
+    symptom_changes: str = Form(None),
+    symptom_itching: bool = Form(False),
+    symptom_itching_severity: int = Form(None),
+    symptom_pain: bool = Form(False),
+    symptom_pain_severity: int = Form(None),
+    symptom_bleeding: bool = Form(False),
+    symptom_bleeding_frequency: str = Form(None),
+    symptom_notes: str = Form(None),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Add or update symptom information for an existing analysis.
+    Tracks duration, changes, and associated symptoms like itching, pain, and bleeding.
+    """
+    analysis = db.query(AnalysisHistory).filter(
+        AnalysisHistory.id == analysis_id,
+        AnalysisHistory.user_id == current_user.id
+    ).first()
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    analysis.symptom_duration = symptom_duration
+    analysis.symptom_duration_value = symptom_duration_value
+    analysis.symptom_duration_unit = symptom_duration_unit
+    analysis.symptom_changes = symptom_changes
+    analysis.symptom_itching = symptom_itching
+    analysis.symptom_itching_severity = symptom_itching_severity if symptom_itching else None
+    analysis.symptom_pain = symptom_pain
+    analysis.symptom_pain_severity = symptom_pain_severity if symptom_pain else None
+    analysis.symptom_bleeding = symptom_bleeding
+    analysis.symptom_bleeding_frequency = symptom_bleeding_frequency if symptom_bleeding else None
+    analysis.symptom_notes = symptom_notes
+    analysis.symptom_updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(analysis)
+
+    return {
+        "message": "Symptoms recorded successfully",
+        "analysis_id": analysis_id,
+        "symptom_duration": symptom_duration,
+        "symptoms": {
+            "itching": symptom_itching,
+            "pain": symptom_pain,
+            "bleeding": symptom_bleeding
+        }
+    }
+
+
+@router.post("/analysis/medications/{analysis_id}")
+async def add_medications(
+    analysis_id: int,
+    medications: str = Form(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Add or update medication list for an existing analysis.
+    Medications should be a JSON string containing an array of medication objects.
+    """
+    analysis = db.query(AnalysisHistory).filter(
+        AnalysisHistory.id == analysis_id,
+        AnalysisHistory.user_id == current_user.id
+    ).first()
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    try:
+        medications_data = json.loads(medications) if medications else []
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid medications JSON format")
+
+    analysis.medications = json.dumps(medications_data)
+    analysis.medications_updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(analysis)
+
+    return {
+        "message": "Medications recorded successfully",
+        "analysis_id": analysis_id,
+        "medication_count": len(medications_data)
+    }
+
+
+@router.post("/analysis/medical-history/{analysis_id}")
+async def add_medical_history(
+    analysis_id: int,
+    family_history_skin_cancer: bool = Form(False),
+    family_history_details: str = Form(None),
+    previous_skin_cancers: bool = Form(False),
+    previous_skin_cancers_details: str = Form(None),
+    immunosuppression: bool = Form(False),
+    immunosuppression_details: str = Form(None),
+    sun_exposure_level: str = Form(None),
+    sun_exposure_details: str = Form(None),
+    history_of_sunburns: bool = Form(False),
+    sunburn_details: str = Form(None),
+    tanning_bed_use: bool = Form(False),
+    tanning_bed_frequency: str = Form(None),
+    other_risk_factors: str = Form(None),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Add or update medical history risk factors for an existing analysis.
+    Tracks family history, previous skin cancers, immunosuppression, sun exposure.
+    """
+    analysis = db.query(AnalysisHistory).filter(
+        AnalysisHistory.id == analysis_id,
+        AnalysisHistory.user_id == current_user.id
+    ).first()
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    analysis.family_history_skin_cancer = family_history_skin_cancer
+    analysis.family_history_details = family_history_details
+    analysis.previous_skin_cancers = previous_skin_cancers
+    analysis.previous_skin_cancers_details = previous_skin_cancers_details
+    analysis.immunosuppression = immunosuppression
+    analysis.immunosuppression_details = immunosuppression_details
+    analysis.sun_exposure_level = sun_exposure_level
+    analysis.sun_exposure_details = sun_exposure_details
+    analysis.history_of_sunburns = history_of_sunburns
+    analysis.sunburn_details = sunburn_details
+    analysis.tanning_bed_use = tanning_bed_use
+    analysis.tanning_bed_frequency = tanning_bed_frequency
+    analysis.other_risk_factors = other_risk_factors
+    analysis.medical_history_updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(analysis)
+
+    return {
+        "message": "Medical history recorded successfully",
+        "analysis_id": analysis_id,
+        "risk_factors": {
+            "family_history": family_history_skin_cancer,
+            "previous_cancers": previous_skin_cancers,
+            "immunosuppression": immunosuppression,
+            "sun_exposure": sun_exposure_level
+        }
+    }
+
+
+# =============================================================================
+# SHARED ANALYSIS PDF EXPORT
+# =============================================================================
+
+@router.get("/shared-analysis/{share_token}/pdf")
+def get_shared_analysis_pdf(
+    share_token: str,
+    db: Session = Depends(get_db)
+):
+    """Generate and download a PDF report of the shared analysis."""
+    from fastapi.responses import FileResponse
+    from io import BytesIO
+    import os
+
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER
+        from reportlab.lib.units import inch
+    except ImportError:
+        raise HTTPException(status_code=503, detail="PDF generation not available")
+
+    analysis = db.query(AnalysisHistory).filter(
+        AnalysisHistory.share_token == share_token
+    ).first()
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Shared analysis not found or token invalid")
+
+    user = db.query(User).filter(User.id == analysis.user_id).first()
+    patient_name = getattr(user, 'full_name', user.email.split('@')[0] if user else 'Unknown')
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+
+    elements = []
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        'CustomTitle', parent=styles['Heading1'], fontSize=24,
+        textColor=colors.HexColor('#0284c7'), spaceAfter=30, alignment=TA_CENTER
+    )
+    heading_style = ParagraphStyle(
+        'CustomHeading', parent=styles['Heading2'], fontSize=16,
+        textColor=colors.HexColor('#1f2937'), spaceAfter=12, spaceBefore=12
+    )
+
+    elements.append(Paragraph("Skin Analysis Report", title_style))
+    elements.append(Spacer(1, 12))
+
+    patient_data = [
+        ['Patient:', patient_name],
+        ['Analysis ID:', str(analysis.id)],
+        ['Date:', analysis.created_at.strftime('%B %d, %Y') if analysis.created_at else 'Unknown']
+    ]
+    patient_table = Table(patient_data, colWidths=[2*inch, 4*inch])
+    patient_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f3f4f6')),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.grey)
+    ]))
+    elements.append(patient_table)
+    elements.append(Spacer(1, 20))
+
+    elements.append(Paragraph("AI Diagnosis", heading_style))
+    diagnosis_data = [
+        ['Predicted Class:', analysis.predicted_class or 'Unknown'],
+        ['Confidence:', f'{(analysis.lesion_confidence or 0) * 100:.1f}%'],
+        ['Risk Level:', analysis.risk_level or 'Unknown']
+    ]
+    diagnosis_table = Table(diagnosis_data, colWidths=[2*inch, 4*inch])
+    diagnosis_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#ecfdf5')),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#10b981'))
+    ]))
+    elements.append(diagnosis_table)
+    elements.append(Spacer(1, 20))
+
+    footer_style = ParagraphStyle(
+        'Footer', parent=styles['Normal'], fontSize=8,
+        textColor=colors.grey, alignment=TA_CENTER
+    )
+    elements.append(Spacer(1, 30))
+    elements.append(Paragraph("This report was generated via secure teledermatology link", footer_style))
+    elements.append(Paragraph("For medical professional review only - Not a substitute for professional diagnosis", footer_style))
+
+    doc.build(elements)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+
+    pdf_filename = f"analysis_{analysis.id}_{share_token[:8]}.pdf"
+    pdf_path = os.path.join("uploads", pdf_filename)
+    os.makedirs("uploads", exist_ok=True)
+    with open(pdf_path, 'wb') as f:
+        f.write(pdf_bytes)
+
+    return FileResponse(
+        pdf_path,
+        media_type='application/pdf',
+        filename=f"skin_analysis_{patient_name.replace(' ', '_')}_{analysis.id}.pdf"
+    )
+
+
+# =============================================================================
+# PREAUTH PDF AND STATUS ENDPOINTS
+# =============================================================================
+
+@router.get("/analysis/preauth-pdf/{analysis_id}")
+def generate_preauth_pdf(
+    analysis_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Generate a PDF of the insurance pre-authorization documentation."""
+    from fastapi.responses import FileResponse
+    import os
+
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER
+        from reportlab.lib.units import inch
+    except ImportError:
+        raise HTTPException(status_code=503, detail="PDF generation not available")
+
+    analysis = db.query(AnalysisHistory).filter(
+        AnalysisHistory.id == analysis_id,
+        AnalysisHistory.user_id == current_user.id
+    ).first()
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    if not analysis.insurance_preauthorization:
+        raise HTTPException(status_code=404, detail="No pre-authorization data available")
+
+    pdf_filename = f"preauth_{analysis_id}_{current_user.id}.pdf"
+    pdf_path = f"uploads/{pdf_filename}"
+    os.makedirs("uploads", exist_ok=True)
+
+    doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+    story = []
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        'CustomTitle', parent=styles['Heading1'], fontSize=24,
+        textColor=colors.HexColor('#047857'), spaceAfter=30, alignment=TA_CENTER
+    )
+
+    story.append(Paragraph("Insurance Pre-Authorization Documentation", title_style))
+    story.append(Spacer(1, 0.2*inch))
+
+    info_data = [
+        ['Analysis ID:', str(analysis_id)],
+        ['Date:', analysis.created_at.strftime('%B %d, %Y')],
+        ['Diagnosis:', analysis.predicted_class or 'N/A'],
+        ['Confidence:', f"{(analysis.lesion_confidence or 0) * 100:.1f}%"],
+    ]
+
+    info_table = Table(info_data, colWidths=[2*inch, 4*inch])
+    info_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0fdf4')),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#047857')),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('PADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#d1fae5')),
+    ]))
+    story.append(info_table)
+    story.append(Spacer(1, 0.3*inch))
+
+    preauth_data = analysis.insurance_preauthorization or {}
+    if preauth_data.get('justification'):
+        story.append(Paragraph("Medical Justification", styles['Heading2']))
+        story.append(Paragraph(preauth_data.get('justification', ''), styles['Normal']))
+
+    doc.build(story)
+
+    return FileResponse(
+        pdf_path,
+        media_type='application/pdf',
+        filename=f"preauth_{analysis_id}.pdf"
+    )
+
+
+@router.patch("/analysis/preauth-status/{analysis_id}")
+async def update_preauth_status(
+    analysis_id: int,
+    status: str = Form(...),
+    reference_number: str = Form(None),
+    notes: str = Form(None),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update the pre-authorization status for an analysis."""
+    analysis = db.query(AnalysisHistory).filter(
+        AnalysisHistory.id == analysis_id,
+        AnalysisHistory.user_id == current_user.id
+    ).first()
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    preauth_data = analysis.insurance_preauthorization or {}
+    preauth_data['status'] = status
+    preauth_data['reference_number'] = reference_number
+    preauth_data['status_notes'] = notes
+    preauth_data['status_updated_at'] = datetime.utcnow().isoformat()
+
+    analysis.insurance_preauthorization = preauth_data
+    db.commit()
+
+    return {
+        "message": "Pre-authorization status updated",
+        "analysis_id": analysis_id,
+        "status": status,
+        "reference_number": reference_number
+    }
+
+
+# =============================================================================
+# FEATURE IMPORTANCE AND DERMATOLOGIST COMPARISON
+# =============================================================================
+
+@router.get("/analysis/{analysis_id}/feature-importance")
+async def get_feature_importance(
+    analysis_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get feature importance scores for an analysis."""
+    analysis = db.query(AnalysisHistory).filter(
+        AnalysisHistory.id == analysis_id,
+        AnalysisHistory.user_id == current_user.id
+    ).first()
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    # Get ABCDE data if available
+    abcde_data = analysis.red_flag_data or {}
+
+    features = []
+    if abcde_data:
+        if 'asymmetry' in abcde_data:
+            features.append({
+                "feature": "Asymmetry",
+                "importance": abcde_data['asymmetry'].get('overall_score', 0),
+                "description": "Degree of asymmetry in shape and color distribution"
+            })
+        if 'border' in abcde_data:
+            features.append({
+                "feature": "Border Irregularity",
+                "importance": abcde_data['border'].get('overall_score', 0),
+                "description": "Irregularity of the lesion border"
+            })
+        if 'color' in abcde_data:
+            features.append({
+                "feature": "Color Variation",
+                "importance": abcde_data['color'].get('overall_score', 0),
+                "description": "Number and variety of colors present"
+            })
+        if 'diameter' in abcde_data:
+            features.append({
+                "feature": "Diameter",
+                "importance": abcde_data['diameter'].get('overall_score', 0),
+                "description": "Size of the lesion"
+            })
+
+    # Add ML-based importance
+    features.append({
+        "feature": "ML Confidence",
+        "importance": analysis.lesion_confidence or 0,
+        "description": "Machine learning model confidence"
+    })
+
+    return {
+        "analysis_id": analysis_id,
+        "predicted_class": analysis.predicted_class,
+        "features": sorted(features, key=lambda x: x['importance'], reverse=True)
+    }
+
+
+@router.post("/analysis/{analysis_id}/dermatologist-annotation")
+async def add_dermatologist_annotation(
+    analysis_id: int,
+    dermatologist_diagnosis: str = Form(...),
+    dermatologist_confidence: float = Form(None),
+    dermatologist_notes: str = Form(None),
+    agrees_with_ai: bool = Form(None),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Add dermatologist annotation to an analysis for comparison."""
+    # Check if user is a professional
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if not profile or not profile.is_professional:
+        raise HTTPException(status_code=403, detail="Only verified professionals can add annotations")
+
+    analysis = db.query(AnalysisHistory).filter(AnalysisHistory.id == analysis_id).first()
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    analysis.dermatologist_diagnosis = dermatologist_diagnosis
+    analysis.dermatologist_confidence = dermatologist_confidence
+    analysis.dermatologist_notes = dermatologist_notes
+    analysis.dermatologist_agrees = agrees_with_ai
+    analysis.dermatologist_reviewed_at = datetime.utcnow()
+    analysis.dermatologist_reviewer_id = current_user.id
+
+    db.commit()
+
+    return {
+        "message": "Dermatologist annotation added",
+        "analysis_id": analysis_id,
+        "dermatologist_diagnosis": dermatologist_diagnosis,
+        "ai_diagnosis": analysis.predicted_class,
+        "agreement": agrees_with_ai
+    }
+
+
+@router.get("/analysis/{analysis_id}/compare-with-dermatologist")
+async def compare_with_dermatologist(
+    analysis_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Compare AI diagnosis with dermatologist diagnosis."""
+    analysis = db.query(AnalysisHistory).filter(
+        AnalysisHistory.id == analysis_id,
+        AnalysisHistory.user_id == current_user.id
+    ).first()
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    if not analysis.dermatologist_diagnosis:
+        return {
+            "analysis_id": analysis_id,
+            "has_dermatologist_review": False,
+            "message": "No dermatologist review available for this analysis"
+        }
+
+    ai_diagnosis = analysis.predicted_class or ""
+    derm_diagnosis = analysis.dermatologist_diagnosis or ""
+    exact_match = ai_diagnosis.lower() == derm_diagnosis.lower()
+
+    malignant_conditions = ["melanoma", "basal cell carcinoma", "squamous cell carcinoma"]
+    ai_malignant = any(c in ai_diagnosis.lower() for c in malignant_conditions)
+    derm_malignant = any(c in derm_diagnosis.lower() for c in malignant_conditions)
+    category_match = ai_malignant == derm_malignant
+
+    return {
+        "analysis_id": analysis_id,
+        "has_dermatologist_review": True,
+        "ai_diagnosis": ai_diagnosis,
+        "ai_confidence": analysis.lesion_confidence,
+        "dermatologist_diagnosis": derm_diagnosis,
+        "dermatologist_confidence": analysis.dermatologist_confidence,
+        "dermatologist_notes": analysis.dermatologist_notes,
+        "comparison": {
+            "exact_match": exact_match,
+            "category_match": category_match,
+            "dermatologist_agrees": analysis.dermatologist_agrees,
+            "ai_malignant": ai_malignant,
+            "derm_malignant": derm_malignant
+        },
+        "reviewed_at": analysis.dermatologist_reviewed_at.isoformat() if analysis.dermatologist_reviewed_at else None
+    }
+
+
+@router.get("/analysis/{analysis_id}/highlighted-regions")
+async def get_highlighted_regions(
+    analysis_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get AI-highlighted regions of interest for an analysis."""
+    analysis = db.query(AnalysisHistory).filter(
+        AnalysisHistory.id == analysis_id,
+        AnalysisHistory.user_id == current_user.id
+    ).first()
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    # Build regions from ABCDE data if available
+    regions = []
+    abcde_data = analysis.red_flag_data or {}
+
+    if abcde_data.get('asymmetry', {}).get('overall_score', 0) > 0.5:
+        regions.append({
+            "region_id": 1,
+            "feature_type": "asymmetry",
+            "importance_score": abcde_data['asymmetry']['overall_score'],
+            "description": "Asymmetric region detected"
+        })
+
+    if abcde_data.get('border', {}).get('overall_score', 0) > 0.5:
+        regions.append({
+            "region_id": 2,
+            "feature_type": "border",
+            "importance_score": abcde_data['border']['overall_score'],
+            "description": "Irregular border region"
+        })
+
+    if abcde_data.get('color', {}).get('overall_score', 0) > 0.5:
+        regions.append({
+            "region_id": 3,
+            "feature_type": "color",
+            "importance_score": abcde_data['color']['overall_score'],
+            "description": "Abnormal color variation"
+        })
+
+    return {
+        "analysis_id": analysis_id,
+        "predicted_class": analysis.predicted_class,
+        "regions": regions,
+        "heatmap_url": analysis.heatmap_url if hasattr(analysis, 'heatmap_url') else None
+    }
