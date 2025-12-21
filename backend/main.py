@@ -32,7 +32,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 # Database setup
-from database import create_tables, migrate_inflammatory_fields, migrate_user_roles, migrate_consensus_tables
+from database import create_tables, migrate_inflammatory_fields, migrate_user_roles, migrate_consensus_tables, migrate_clinical_trials_tables
 
 # Request logging middleware
 from middleware import (
@@ -86,6 +86,9 @@ from routers.batch_router import router as batch_router
 # Genetics (Genetic Risk Factors)
 from routers.genetics_router import router as genetics_router
 
+# Medications (Interaction Checking, Safety)
+from routers.medications_router import router as medications_router
+
 # Lab Results
 from routers.lab_results_router import router as lab_results_router
 
@@ -106,6 +109,18 @@ from routers.jobs_router import router as jobs_router
 
 # Model Monitoring and Alerts
 from routers.monitoring_router import router as monitoring_router
+
+# Clinical Trials (Recruitment Matching)
+from routers.clinical_trials_router import router as clinical_trials_router
+
+# Publication Reports
+from routers.report_router import router as report_router
+
+# Wearable Integration (Apple Watch, Fitbit, Garmin UV tracking)
+from routers.wearable_router import router as wearable_router
+
+# Cost Transparency (price estimates, provider comparison, GoodRx)
+from routers.cost_transparency_router import router as cost_transparency_router
 
 # Existing router (already was separate)
 from clinic_management import router as clinic_router
@@ -135,6 +150,11 @@ create_tables()
 migrate_inflammatory_fields()
 migrate_user_roles()
 migrate_consensus_tables()
+migrate_clinical_trials_tables()
+
+# Wearable integration tables
+from database import migrate_wearable_tables
+migrate_wearable_tables()
 
 # Add CORS middleware
 app.add_middleware(
@@ -199,6 +219,9 @@ app.include_router(clinic_router)
 # Genetics (Genetic Risk Factors)
 app.include_router(genetics_router)
 
+# Medications (Interaction Checking, Safety)
+app.include_router(medications_router)
+
 # Lab Results
 app.include_router(lab_results_router)
 
@@ -219,6 +242,18 @@ app.include_router(jobs_router)
 
 # Model Monitoring and Alerts
 app.include_router(monitoring_router)
+
+# Clinical Trials (Recruitment Matching)
+app.include_router(clinical_trials_router)
+
+# Publication Reports
+app.include_router(report_router)
+
+# Wearable Integration (UV Tracking)
+app.include_router(wearable_router)
+
+# Cost Transparency (price estimates, provider comparison, GoodRx)
+app.include_router(cost_transparency_router)
 
 # =============================================================================
 # HEALTH CHECK ENDPOINTS

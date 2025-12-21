@@ -467,6 +467,29 @@ def full_classify_task(
             except Exception as e:
                 multimodal_result = {"error": str(e), "multimodal_analysis": {"enabled": False}}
 
+        # ABCDE Feature Analysis
+        abcde_result = None
+        try:
+            from abcde_feature_analysis import perform_abcde_analysis, format_abcde_for_response, build_combined_assessment
+
+            abcde_analysis = perform_abcde_analysis(
+                image=image,
+                pixels_per_mm=None,
+                previous_image=None,
+                previous_analysis=None
+            )
+            abcde_result = format_abcde_for_response(abcde_analysis)
+
+            # Update risk level if combined assessment indicates higher risk
+            combined = build_combined_assessment(abcde_result, predicted_class, lesion_confidence)
+            combined_risk = combined.get("combined_assessment", {}).get("overall_risk_level")
+            if combined_risk:
+                risk_order = {"low": 0, "moderate": 1, "medium": 1, "high": 2, "very_high": 3}
+                if risk_order.get(combined_risk, 0) > risk_order.get(risk_level, 0):
+                    risk_level = combined_risk
+        except Exception as e:
+            abcde_result = {"error": str(e)}
+
         update_progress(7, 8, "Saving to database")
 
         analysis_id = None
@@ -512,7 +535,8 @@ def full_classify_task(
                     clinical_adjustment_delta=mm_data.get("clinical_adjustments", {}).get("confidence_delta"),
                     lab_adjustment_delta=mm_data.get("lab_adjustments", {}).get("confidence_delta"),
                     multimodal_risk_factors=multimodal_result.get("risk_factors") if multimodal_result else None,
-                    multimodal_recommendations=multimodal_result.get("recommendations") if multimodal_result else None
+                    multimodal_recommendations=multimodal_result.get("recommendations") if multimodal_result else None,
+                    red_flag_data=abcde_result if abcde_result and "error" not in abcde_result else None
                 )
 
                 db.add(analysis_record)
@@ -575,7 +599,14 @@ def full_classify_task(
             "processing_time": processing_time,
             "model_version": "full_classify_v2.0_async",
             "is_malignant": is_malignant,
-            "status": "success"
+            "status": "success",
+            # ABCDE Feature Analysis
+            "abcde_analysis": abcde_result if abcde_result and "error" not in abcde_result else None,
+            "asymmetry_score": abcde_result.get("asymmetry", {}).get("overall_score") if abcde_result and "error" not in abcde_result else None,
+            "border_score": abcde_result.get("border", {}).get("overall_score") if abcde_result and "error" not in abcde_result else None,
+            "color_score": abcde_result.get("color", {}).get("overall_score") if abcde_result and "error" not in abcde_result else None,
+            "diameter_score": abcde_result.get("diameter", {}).get("overall_score") if abcde_result and "error" not in abcde_result else None,
+            "total_dermoscopy_score": abcde_result.get("total_score") if abcde_result and "error" not in abcde_result else None,
         })
 
     except SoftTimeLimitExceeded:
@@ -953,3 +984,52 @@ def histopathology_analyze_task(
         return {"status": "error", "error": "Task timed out", "task_id": self.request.id}
     except Exception as e:
         return {"status": "error", "error": str(e), "traceback": traceback.format_exc(), "task_id": self.request.id}
+
+
+# =============================================================================
+# SCHEDULED TASKS
+# =============================================================================
+
+@celery_app.task(bind=True, name="tasks.sync_clinical_trials_task")
+def sync_clinical_trials_task(self) -> Dict[str, Any]:
+    """
+    Scheduled task to sync clinical trials from ClinicalTrials.gov.
+
+    This task runs weekly (configured in celery_app.py beat_schedule) and:
+    - Fetches recruiting dermatology trials from ClinicalTrials.gov API
+    - Updates existing trials with new information
+    - Adds newly listed trials to the database
+
+    Can also be triggered manually via:
+        sync_clinical_trials_task.delay()
+
+    Returns:
+        Dict with sync statistics (trials_fetched, created, updated, errors)
+    """
+    try:
+        import asyncio
+        from clinical_trials_sync import sync_dermatology_trials
+
+        print(f"[CLINICAL TRIALS SYNC] Starting scheduled sync at {datetime.utcnow().isoformat()}")
+
+        # Run the async sync function
+        stats = asyncio.run(sync_dermatology_trials())
+
+        print(f"[CLINICAL TRIALS SYNC] Completed: {stats['trials_created']} created, {stats['trials_updated']} updated")
+
+        return {
+            "task_id": self.request.id,
+            "status": "success",
+            "stats": stats,
+            "completed_at": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        error_msg = f"Clinical trials sync failed: {str(e)}"
+        print(f"[CLINICAL TRIALS SYNC] ERROR: {error_msg}")
+        return {
+            "task_id": self.request.id,
+            "status": "error",
+            "error": error_msg,
+            "traceback": traceback.format_exc()
+        }

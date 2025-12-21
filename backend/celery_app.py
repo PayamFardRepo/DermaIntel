@@ -8,11 +8,21 @@ Usage:
     # Start worker
     celery -A celery_app worker --loglevel=info --concurrency=2
 
+    # Start beat scheduler (for periodic tasks like clinical trials sync)
+    celery -A celery_app beat --loglevel=info
+
+    # Or run worker and beat together
+    celery -A celery_app worker --beat --loglevel=info --concurrency=2
+
     # Start Flower monitoring (optional)
     celery -A celery_app flower --port=5555
+
+Scheduled Tasks:
+    - sync_clinical_trials_task: Runs weekly (Sunday 3 AM) to sync trials from ClinicalTrials.gov
 """
 
 from celery import Celery
+from celery.schedules import crontab
 import config
 
 # Create Celery app
@@ -89,6 +99,15 @@ celery_app.conf.update(
 
     # Worker will restart after processing N tasks (memory management for ML models)
     worker_max_tasks_per_child=50,
+
+    # Celery Beat schedule for periodic tasks
+    beat_schedule={
+        "sync-clinical-trials-weekly": {
+            "task": "tasks.sync_clinical_trials_task",
+            "schedule": crontab(hour=3, minute=0, day_of_week="sunday"),  # Every Sunday at 3 AM
+            "options": {"queue": "default"},
+        },
+    },
 )
 
 

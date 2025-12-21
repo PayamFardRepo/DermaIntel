@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Date, Time, Boolean, Text, JSON, Float, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Date, Time, Boolean, Text, JSON, Float, ForeignKey, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -2914,6 +2914,577 @@ class ConsensusAssignment(Base):
     # Relationships
     case = relationship("ConsensusCase", backref="assignments")
     specialist = relationship("DermatologistProfile", backref="consensus_assignments")
+
+
+# =============================================================================
+# CLINICAL TRIALS MODELS
+# =============================================================================
+
+class ClinicalTrial(Base):
+    """
+    Clinical Trial - Stores clinical trial information synced from ClinicalTrials.gov
+    """
+    __tablename__ = "clinical_trials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nct_id = Column(String, unique=True, index=True)  # ClinicalTrials.gov ID (e.g., NCT12345678)
+
+    # Basic information
+    title = Column(String, nullable=False)
+    brief_summary = Column(Text)
+    detailed_description = Column(Text)
+
+    # Trial details
+    phase = Column(String)  # Phase 1, Phase 2, Phase 3, Phase 4, N/A
+    status = Column(String, index=True)  # Recruiting, Active, Completed, Suspended, Terminated
+    study_type = Column(String)  # Interventional, Observational
+
+    # Conditions & interventions (JSON arrays)
+    conditions = Column(JSON)  # ["melanoma", "basal cell carcinoma"]
+    interventions = Column(JSON)  # [{"type": "Drug", "name": "Pembrolizumab"}]
+
+    # Eligibility criteria
+    eligibility_criteria = Column(Text)  # Raw eligibility text from API
+    min_age = Column(Integer)  # Minimum age in years
+    max_age = Column(Integer)  # Maximum age in years (999 = no max)
+    gender = Column(String)  # All, Male, Female
+
+    # Locations (JSON array of location objects)
+    locations = Column(JSON)  # [{facility, city, state, country, zip, lat, lng, status}]
+
+    # Contact information
+    contact_name = Column(String)
+    contact_email = Column(String)
+    contact_phone = Column(String)
+    principal_investigator = Column(String)
+
+    # Enrollment
+    target_enrollment = Column(Integer)
+    current_enrollment = Column(Integer)
+
+    # Sponsor & collaborators
+    sponsor = Column(String)
+    collaborators = Column(JSON)  # ["Organization 1", "Organization 2"]
+
+    # Key dates
+    start_date = Column(DateTime)
+    completion_date = Column(DateTime)
+    primary_completion_date = Column(DateTime)
+    last_update_posted = Column(DateTime)
+
+    # URL
+    url = Column(String)  # ClinicalTrials.gov URL
+
+    # Genetic/Biomarker requirements (extracted from eligibility criteria)
+    required_biomarkers = Column(JSON)  # ["BRAF V600E", "BRAF V600K", "NRAS mutation"]
+    excluded_biomarkers = Column(JSON)  # ["BRAF wild-type"]
+    genetic_requirements = Column(JSON)  # Structured: [{"gene": "BRAF", "variants": ["V600E", "V600K"], "required": true}]
+    biomarker_keywords = Column(JSON)  # Raw keywords found: ["BRAF", "PD-L1", "TMB"]
+    requires_genetic_testing = Column(Boolean, default=False)  # Trial requires genetic/biomarker testing
+    targeted_therapy_trial = Column(Boolean, default=False)  # Is this a targeted therapy trial
+
+    # Sync tracking
+    synced_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TrialMatch(Base):
+    """
+    Trial Match - Stores personalized trial matches for users based on their profile and diagnosis history
+    """
+    __tablename__ = "trial_matches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    trial_id = Column(Integer, ForeignKey("clinical_trials.id"), nullable=False, index=True)
+
+    # Match scoring (0-100)
+    match_score = Column(Float)
+    match_reasons = Column(JSON)  # ["diagnosis_exact_match", "location_nearby", "age_eligible"]
+    unmet_criteria = Column(JSON)  # ["requires_biopsy_confirmation", "excludes_prior_immunotherapy"]
+
+    # Diagnosis matching details
+    matched_conditions = Column(JSON)  # Conditions that matched
+    diagnosis_score = Column(Float)  # Score from diagnosis matching (0-60)
+
+    # Location details
+    distance_miles = Column(Float)
+    nearest_location = Column(JSON)  # {facility, city, state, zip}
+
+    # Demographics matching
+    age_eligible = Column(Boolean)
+    gender_eligible = Column(Boolean)
+
+    # Genetic/Biomarker matching details
+    genetic_score = Column(Float, default=0)  # Score from genetic matching (0-15)
+    matched_biomarkers = Column(JSON)  # ["BRAF V600E", "NRAS Q61K"]
+    missing_biomarkers = Column(JSON)  # Required but user doesn't have
+    excluded_biomarkers_found = Column(JSON)  # User has biomarker that excludes them
+    genetic_eligible = Column(Boolean, default=True)  # False if excluded by biomarker
+    genetic_match_type = Column(String)  # "exact", "partial", "none", "excluded"
+
+    # Status tracking
+    status = Column(String, default="matched", index=True)  # matched, viewed, interested, contacted, enrolled, declined, expired
+
+    # User interaction
+    viewed_at = Column(DateTime)
+    dismissed = Column(Boolean, default=False)
+    dismissed_at = Column(DateTime)
+    dismiss_reason = Column(String)
+
+    # Timestamps
+    matched_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", backref="trial_matches")
+    trial = relationship("ClinicalTrial", backref="matches")
+
+
+class TrialInterest(Base):
+    """
+    Trial Interest - Tracks when users express interest in clinical trials
+    """
+    __tablename__ = "trial_interests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    trial_id = Column(Integer, ForeignKey("clinical_trials.id"), nullable=False, index=True)
+    match_id = Column(Integer, ForeignKey("trial_matches.id"))
+
+    # Interest details
+    interest_level = Column(String)  # high, medium, exploring
+    preferred_contact = Column(String)  # email, phone, either
+    contact_email = Column(String)  # User's preferred contact email
+    contact_phone = Column(String)  # User's preferred contact phone
+    notes = Column(Text)  # User's notes or questions
+
+    # Related analysis (if interest sparked by specific diagnosis)
+    related_analysis_id = Column(Integer, ForeignKey("analysis_history.id"))
+
+    # Contact tracking
+    contacted_trial = Column(Boolean, default=False)
+    contacted_at = Column(DateTime)
+    contact_method = Column(String)  # email, phone, website
+    contact_response = Column(String)  # responded, no_response, enrolled, declined
+
+    # Enrollment outcome
+    enrolled = Column(Boolean, default=False)
+    enrolled_at = Column(DateTime)
+    enrollment_status = Column(String)  # screening, enrolled, completed, withdrawn
+
+    # Withdrawal tracking
+    withdrawn = Column(Boolean, default=False)
+    withdrawn_at = Column(DateTime)
+    withdrawal_reason = Column(Text)
+
+    # Timestamps
+    expressed_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", backref="trial_interests")
+    trial = relationship("ClinicalTrial", backref="interests")
+    match = relationship("TrialMatch", backref="interests")
+
+
+# =============================================================================
+# WEARABLE INTEGRATION MODELS
+# =============================================================================
+
+class WearableDevice(Base):
+    """
+    Connected wearable devices for UV exposure tracking.
+    Supports Apple Watch, Fitbit, Garmin, and other devices.
+    """
+    __tablename__ = "wearable_devices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    # Device identification
+    device_type = Column(String, nullable=False)  # "apple_watch", "fitbit", "garmin", "samsung", "withings", "other"
+    device_model = Column(String)  # "Apple Watch Series 9", "Fitbit Sense 2", "Garmin Venu 3"
+    device_name = Column(String)  # User-given name for the device
+    device_id = Column(String, unique=True, index=True)  # Unique device identifier from platform
+
+    # Connection status
+    is_connected = Column(Boolean, default=True)
+    connection_status = Column(String, default="active")  # "active", "disconnected", "expired", "revoked"
+    last_sync_at = Column(DateTime)
+    sync_frequency_minutes = Column(Integer, default=60)  # How often to sync
+
+    # OAuth tokens (encrypted in production)
+    access_token = Column(Text)  # Encrypted OAuth access token
+    refresh_token = Column(Text)  # Encrypted OAuth refresh token
+    token_expires_at = Column(DateTime)
+    scopes = Column(JSON)  # List of granted permission scopes
+
+    # Capabilities
+    has_uv_sensor = Column(Boolean, default=False)  # Device has built-in UV sensor
+    has_location = Column(Boolean, default=True)  # Can provide location for UV index lookup
+    has_activity_tracking = Column(Boolean, default=True)  # Can detect outdoor activity
+    has_heart_rate = Column(Boolean, default=True)
+    supported_data_types = Column(JSON)  # ["uv_exposure", "activity", "location", "heart_rate", "sleep"]
+
+    # Sync statistics
+    total_syncs = Column(Integer, default=0)
+    successful_syncs = Column(Integer, default=0)
+    failed_syncs = Column(Integer, default=0)
+    total_uv_readings = Column(Integer, default=0)
+
+    # Settings
+    auto_sync_enabled = Column(Boolean, default=True)
+    uv_alert_threshold = Column(Float, default=6.0)  # UV index threshold for alerts
+    outdoor_detection_enabled = Column(Boolean, default=True)  # Auto-detect outdoor activity
+
+    # Timestamps
+    connected_at = Column(DateTime, default=datetime.utcnow)
+    disconnected_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", backref="wearable_devices")
+
+
+class WearableUVReading(Base):
+    """
+    Individual UV exposure readings from wearable devices.
+    Stores granular UV data for correlation with lesion changes.
+    """
+    __tablename__ = "wearable_uv_readings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    device_id = Column(Integer, ForeignKey("wearable_devices.id"), nullable=False, index=True)
+
+    # Reading timestamp and duration
+    reading_timestamp = Column(DateTime, nullable=False, index=True)
+    duration_seconds = Column(Integer, default=60)  # Duration this reading covers
+    reading_date = Column(Date, nullable=False, index=True)  # For daily aggregation
+
+    # UV data
+    uv_index = Column(Float)  # Current UV index (0-11+)
+    uv_dose = Column(Float)  # UV dose in J/m² or MED (Minimal Erythemal Dose)
+    uv_dose_unit = Column(String, default="index_minutes")  # "index_minutes", "joules_per_m2", "med"
+
+    # UV components (if available from device)
+    uva_level = Column(Float)  # UVA component
+    uvb_level = Column(Float)  # UVB component
+
+    # Source of UV data
+    uv_source = Column(String, nullable=False)  # "device_sensor", "location_api", "weather_api", "manual"
+
+    # Location context (for UV index lookup if no sensor)
+    latitude = Column(Float)
+    longitude = Column(Float)
+    altitude_meters = Column(Float)
+    location_name = Column(String)  # "Central Park, NYC" or reverse geocoded
+
+    # Activity context
+    activity_type = Column(String)  # "outdoor_walk", "run", "cycling", "swimming", "stationary", "indoor"
+    activity_confidence = Column(Float)  # 0-1 confidence that user was outdoors
+    is_outdoor = Column(Boolean)  # Definitive outdoor flag
+    steps_during_reading = Column(Integer)
+
+    # Environmental context
+    weather_condition = Column(String)  # "sunny", "partly_cloudy", "cloudy", "rainy"
+    cloud_cover_percent = Column(Float)  # 0-100
+    temperature_celsius = Column(Float)
+    humidity_percent = Column(Float)
+
+    # Protection detection (from activity patterns)
+    likely_protected = Column(Boolean)  # Inferred if user was likely using protection
+    indoor_transition_detected = Column(Boolean)  # Moved indoors during reading
+
+    # Body exposure estimation
+    estimated_body_exposure = Column(JSON)  # {"face": 0.8, "arms": 0.6, "legs": 0.3} based on activity
+
+    # Risk scoring
+    reading_risk_score = Column(Float)  # 0-100 risk score for this reading
+    cumulative_daily_dose = Column(Float)  # Running total for the day
+
+    # Sync metadata
+    synced_at = Column(DateTime, default=datetime.utcnow)
+    raw_device_data = Column(JSON)  # Original data from device API
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", backref="wearable_uv_readings")
+    device = relationship("WearableDevice", backref="uv_readings")
+
+
+class WearableDailyUVSummary(Base):
+    """
+    Daily aggregated UV exposure summary from wearables.
+    Used for trend analysis and lesion correlation.
+    """
+    __tablename__ = "wearable_daily_uv_summaries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    summary_date = Column(Date, nullable=False, index=True)
+
+    # Unique constraint: one summary per user per day
+    __table_args__ = (
+        # UniqueConstraint('user_id', 'summary_date', name='unique_user_daily_summary'),
+    )
+
+    # Aggregated UV exposure
+    total_outdoor_minutes = Column(Integer, default=0)
+    total_uv_dose = Column(Float, default=0)  # Cumulative UV dose
+    average_uv_index = Column(Float)
+    max_uv_index = Column(Float)
+    min_uv_index = Column(Float)
+
+    # Time-based breakdown
+    morning_exposure_minutes = Column(Integer, default=0)  # Before 10am
+    midday_exposure_minutes = Column(Integer, default=0)  # 10am-4pm (highest UV)
+    afternoon_exposure_minutes = Column(Integer, default=0)  # After 4pm
+    peak_uv_hour = Column(Integer)  # Hour with highest UV exposure (0-23)
+
+    # High exposure events
+    high_uv_minutes = Column(Integer, default=0)  # Minutes at UV >= 6
+    very_high_uv_minutes = Column(Integer, default=0)  # Minutes at UV >= 8
+    extreme_uv_minutes = Column(Integer, default=0)  # Minutes at UV >= 11
+
+    # Activity breakdown
+    active_outdoor_minutes = Column(Integer, default=0)  # Walking, running, etc.
+    stationary_outdoor_minutes = Column(Integer, default=0)  # Beach, park, etc.
+
+    # Location patterns
+    primary_location = Column(String)  # Most common outdoor location
+    locations_visited = Column(JSON)  # List of outdoor locations
+
+    # Protection compliance (if tracked)
+    protected_exposure_minutes = Column(Integer)  # When protection was likely used
+    unprotected_exposure_minutes = Column(Integer)
+
+    # Risk assessment
+    daily_risk_score = Column(Float)  # 0-100 risk score for the day
+    risk_category = Column(String)  # "low", "moderate", "high", "very_high"
+    exceeded_recommended_dose = Column(Boolean, default=False)
+
+    # Data quality
+    reading_count = Column(Integer, default=0)  # Number of readings aggregated
+    data_completeness = Column(Float)  # 0-1 how complete the day's data is
+    devices_contributing = Column(JSON)  # List of device IDs that contributed
+
+    # Alerts generated
+    alerts_triggered = Column(JSON)  # List of alerts sent (high UV, etc.)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", backref="wearable_daily_summaries")
+
+
+class WearableLesionCorrelation(Base):
+    """
+    Correlation analysis between wearable UV data and lesion changes.
+    Links UV exposure patterns to specific lesion developments.
+    """
+    __tablename__ = "wearable_lesion_correlations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    lesion_group_id = Column(Integer, ForeignKey("lesion_groups.id"), nullable=False, index=True)
+
+    # Analysis window
+    analysis_start_date = Column(Date, nullable=False)
+    analysis_end_date = Column(Date, nullable=False)
+    days_analyzed = Column(Integer)
+
+    # Lesion change metrics
+    lesion_body_location = Column(String)  # "face", "left_arm", "back", etc.
+    lesion_change_type = Column(String)  # "new", "growth", "color_change", "border_change", "regression"
+    lesion_change_severity = Column(Float)  # 0-10 severity of change
+    lesion_first_detected = Column(DateTime)
+    lesion_change_detected = Column(DateTime)
+
+    # UV exposure to affected area
+    uv_exposure_to_area_minutes = Column(Integer)  # Total exposure to lesion body area
+    uv_dose_to_area = Column(Float)  # UV dose specifically to affected area
+    high_uv_events_to_area = Column(Integer)  # High UV events exposing that area
+    sunburn_events_to_area = Column(Integer)
+
+    # Historical UV patterns (30/60/90 days before change)
+    uv_30_day_avg = Column(Float)  # Average daily UV dose 30 days before
+    uv_60_day_avg = Column(Float)
+    uv_90_day_avg = Column(Float)
+    uv_trend = Column(String)  # "increasing", "stable", "decreasing"
+
+    # Cumulative exposure
+    cumulative_uv_dose = Column(Float)  # Total UV dose during analysis period
+    cumulative_outdoor_hours = Column(Float)
+    sunburn_count = Column(Integer)  # Number of sunburn events
+
+    # Correlation statistics
+    correlation_coefficient = Column(Float)  # Pearson correlation -1 to 1
+    correlation_p_value = Column(Float)  # Statistical significance
+    correlation_strength = Column(String)  # "strong", "moderate", "weak", "none", "inverse"
+    correlation_confidence = Column(Float)  # 0-1 confidence in correlation
+
+    # Contributing factors
+    contributing_factors = Column(JSON)  # ["high_midday_exposure", "no_protection", "altitude"]
+    protective_factors = Column(JSON)  # ["consistent_sunscreen", "morning_only_exposure"]
+
+    # Risk assessment
+    uv_contribution_score = Column(Float)  # 0-100 how much UV likely contributed
+    other_factors_score = Column(Float)  # 0-100 non-UV factors
+    overall_risk_attribution = Column(String)  # "primarily_uv", "partially_uv", "unlikely_uv"
+
+    # Recommendations
+    personalized_recommendations = Column(JSON)  # List of specific recommendations
+    recommended_max_daily_exposure = Column(Integer)  # Minutes
+    recommended_spf = Column(Integer)
+    high_risk_times = Column(JSON)  # ["10:00-14:00"] times to avoid
+
+    # AI analysis
+    ai_analysis_summary = Column(Text)  # LLM-generated summary
+    ai_confidence = Column(Float)  # AI confidence in analysis
+
+    # Timestamps
+    analyzed_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", backref="wearable_lesion_correlations")
+    lesion_group = relationship("LesionGroup", backref="wearable_correlations")
+
+
+# =============================================================================
+# INSURANCE APPEALS MODELS
+# =============================================================================
+
+class InsuranceAppeal(Base):
+    """
+    Insurance Appeal - Track insurance claim appeals and their outcomes.
+    Supports multiple appeal levels and tracks the full appeal workflow.
+    """
+    __tablename__ = "insurance_appeals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    analysis_id = Column(Integer, ForeignKey("analysis_history.id"), nullable=True, index=True)
+
+    # Appeal identification
+    appeal_id = Column(String, unique=True, index=True)  # External appeal ID (e.g., "APL-20241218-001")
+    claim_number = Column(String, index=True)  # Original insurance claim number
+
+    # Insurance details
+    insurance_company = Column(String, nullable=False)
+    policy_number = Column(String)
+    group_number = Column(String)
+    subscriber_id = Column(String)
+
+    # Original claim details
+    date_of_service = Column(DateTime)
+    original_claim_amount = Column(Float)
+    diagnosis = Column(String)
+    icd10_code = Column(String)
+    procedure = Column(String)
+    cpt_code = Column(String)
+
+    # Denial information
+    denial_date = Column(DateTime)
+    denial_reason = Column(String, nullable=False)  # "medical_necessity", "not_covered", etc.
+    denial_reason_text = Column(Text)  # Full text of denial reason
+    denial_code = Column(String)  # Insurance company denial code
+
+    # Appeal details
+    appeal_level = Column(String, default="first_level")  # "first_level", "second_level", "external_review", "state_insurance"
+    appeal_status = Column(String, default="draft", index=True)  # "draft", "submitted", "under_review", "additional_info_requested", "approved", "denied", "escalated"
+
+    # Appeal letter content
+    letter_content = Column(Text)  # Generated appeal letter
+    subject_line = Column(String)
+    key_arguments = Column(JSON)  # List of key arguments made
+    supporting_evidence = Column(JSON)  # List of supporting evidence mentioned
+    supporting_documents = Column(JSON)  # List of documents attached
+
+    # Success metrics
+    success_likelihood = Column(Integer)  # 0-100 estimated success likelihood
+    recommended_next_steps = Column(JSON)  # List of recommended actions
+
+    # Provider information
+    provider_name = Column(String)
+    provider_npi = Column(String)
+    provider_address = Column(Text)
+    provider_phone = Column(String)
+    provider_fax = Column(String)
+
+    # Patient information (denormalized for appeal letter)
+    patient_name = Column(String)
+    patient_dob = Column(String)
+    patient_address = Column(Text)
+    patient_phone = Column(String)
+
+    # Timeline tracking
+    submitted_date = Column(DateTime)
+    deadline = Column(DateTime)  # Appeal deadline
+    response_due_date = Column(DateTime)  # When insurance must respond
+    decision_date = Column(DateTime)  # When decision was received
+
+    # Outcome
+    outcome = Column(String)  # "approved", "denied", "partial_approval"
+    outcome_amount = Column(Float)  # Amount approved if partial
+    outcome_notes = Column(Text)  # Notes about the outcome
+
+    # Escalation tracking
+    escalated_from_id = Column(Integer, ForeignKey("insurance_appeals.id"), nullable=True)
+    escalation_reason = Column(Text)
+
+    # Communication log
+    communications = Column(JSON)  # List of {date, type, summary, attachments}
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", backref="insurance_appeals")
+    analysis = relationship("AnalysisHistory", backref="insurance_appeals")
+    escalated_from = relationship("InsuranceAppeal", remote_side=[id], backref="escalations")
+
+
+def migrate_insurance_appeals_table():
+    """Create insurance_appeals table if it doesn't exist."""
+    try:
+        InsuranceAppeal.__table__.create(engine, checkfirst=True)
+        print("InsuranceAppeal table created/verified successfully!")
+    except Exception as e:
+        print(f"Error creating InsuranceAppeal table: {e}")
+
+
+def migrate_wearable_tables():
+    """Create wearable integration tables if they don't exist."""
+    try:
+        WearableDevice.__table__.create(engine, checkfirst=True)
+        WearableUVReading.__table__.create(engine, checkfirst=True)
+        WearableDailyUVSummary.__table__.create(engine, checkfirst=True)
+        WearableLesionCorrelation.__table__.create(engine, checkfirst=True)
+        print("Wearable integration tables created/verified successfully!")
+    except Exception as e:
+        print(f"Error creating wearable tables: {e}")
+
+
+def migrate_clinical_trials_tables():
+    """Create clinical trials related tables if they don't exist."""
+    try:
+        ClinicalTrial.__table__.create(engine, checkfirst=True)
+        TrialMatch.__table__.create(engine, checkfirst=True)
+        TrialInterest.__table__.create(engine, checkfirst=True)
+        print("Clinical trials tables created/verified successfully!")
+    except Exception as e:
+        print(f"Error creating clinical trials tables: {e}")
 
 
 def migrate_system_alerts_table():
