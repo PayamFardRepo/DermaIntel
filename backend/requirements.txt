@@ -37,6 +37,7 @@ PyMuPDF==1.24.0
 pytesseract==0.3.10
 pdf2image==1.17.0
 opencv-python-headless==4.10.0.84
+reportlab>=4.0.0
 
 # Async/HTTP
 aiohttp==3.12.13
