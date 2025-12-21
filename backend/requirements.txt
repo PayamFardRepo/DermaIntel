@@ -51,6 +51,7 @@ redis>=5.0.0
 kombu>=5.3.0
 
 # Utils
+psutil>=5.9.0
 python-dotenv>=1.0.0
 python-dateutil==2.9.0.post0
 PyYAML==6.0.2
