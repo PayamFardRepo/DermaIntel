@@ -1,0 +1,51 @@
+# Virtual environment
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Model checkpoints and trained models (download at runtime or use model registry)
+checkpoints/
+checkpoint-*/
+*.pt
+*.pth
+*.onnx
+*.h5
+infectious_disease_model/
+pigmentation_model/
+
+# Uploaded files (use cloud storage in production)
+uploads/
+
+# Database files (use external database in production)
+*.db
+
+# Logs
+*.log
+server.log
+
+# Test files
+tests/
+test_*.py
+pytest.ini
+
+# Development files
+.env
+.env.*
+*.md
+*.bat
+*.ps1
+
+# IDE
+.vscode/
+.idea/
+
+# Data files
+data/
+BLVS/
+sample_vcf_files/
+
+# Misc
+nul
+*.backup
+*.broken
