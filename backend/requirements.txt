@@ -51,9 +51,7 @@ starlette==0.47.1
 sympy==1.14.0
 threadpoolctl==3.6.0
 tokenizers==0.21.1
-torch==2.7.1
-torchaudio==2.7.1
-torchvision==0.22.1
+# torch, torchvision, torchaudio installed separately via nixpacks.toml (CPU-only)
 tqdm==4.67.1
 transformers==4.52.4
 typing-inspection==0.4.1
@@ -87,11 +85,4 @@ redis>=5.0.0
 flower>=2.0.0  # Celery monitoring dashboard (optional)
 kombu>=5.3.0
 
-# Testing dependencies
-pytest>=7.4.0
-pytest-asyncio>=0.21.0
-pytest-cov>=4.1.0
-httpx>=0.24.0
-factory-boy>=3.3.0
-faker>=19.0.0
-pytest-mock>=3.11.0
+# Testing dependencies (install separately with: pip install pytest pytest-asyncio pytest-cov httpx factory-boy faker pytest-mock)
