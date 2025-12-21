@@ -270,40 +270,8 @@ def read_root():
 
 @app.get("/health")
 def health_check():
-    """
-    Basic health check endpoint.
-    Returns system health status.
-    """
-    from datetime import datetime
-
-    # Simple health check for Railway - always return 200 OK
-    response = {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-    }
-
-    # Try to add database status
-    try:
-        from database import SessionLocal
-        from sqlalchemy import text
-        db = SessionLocal()
-        db.execute(text("SELECT 1"))
-        db.close()
-        response["database"] = "healthy"
-    except Exception as e:
-        response["database"] = f"unhealthy: {str(e)}"
-        response["status"] = "degraded"
-
-    # Try to add system info
-    try:
-        import psutil
-        memory = psutil.virtual_memory()
-        response["memory_used_percent"] = memory.percent
-        response["cpu_percent"] = psutil.cpu_percent(interval=0.1)
-    except Exception:
-        pass
-
-    return response
+    """Basic health check endpoint for Railway."""
+    return {"status": "ok"}
 
 
 def _format_uptime(seconds: float) -> str:
