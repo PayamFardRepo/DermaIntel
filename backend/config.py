@@ -55,19 +55,29 @@ MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", str(10 * 1024 * 1024)))
 # MODEL PATHS
 # =============================================================================
 
-# Binary lesion classifier (ResNet18)
+# HuggingFace token for private model access
+HF_TOKEN = os.getenv("HF_TOKEN", None)
+
+# HuggingFace Model Repository IDs (private repos)
+HF_LESION_MODEL_ID = os.getenv("HF_LESION_MODEL_ID", "PayamFard123/dermaintel-lesion-classifier")
+HF_ISIC_MODEL_ID = os.getenv("HF_ISIC_MODEL_ID", "PayamFard123/dermaintel-isic-classifier")
+HF_ISIC_OLD_MODEL_ID = os.getenv("HF_ISIC_OLD_MODEL_ID", "PayamFard123/dermaintel-isic-old")
+HF_INFECTIOUS_MODEL_ID = os.getenv("HF_INFECTIOUS_MODEL_ID", "PayamFard123/dermaintel-infectious-disease")
+HF_BINARY_MODEL_ID = os.getenv("HF_BINARY_MODEL_ID", "PayamFard123/dermaintel-binary-classifier")
+
+# Binary lesion classifier (ResNet18) - local fallback path
 BINARY_CLASSIFIER_PATH = Path(os.getenv(
     "BINARY_CLASSIFIER_PATH",
     str(BASE_DIR / "binary_classifier_model" / "best_resnet18_binary.pth")
 ))
 
-# Lesion classification model (HuggingFace checkpoint)
+# Lesion classification model (HuggingFace checkpoint) - local fallback path
 LESION_MODEL_PATH = Path(os.getenv(
     "LESION_MODEL_PATH",
     str(BASE_DIR / "checkpoint-6762")
 ))
 
-# ISIC 8-class model checkpoint
+# ISIC 8-class model checkpoint - local fallback path
 ISIC_MODEL_PATH = Path(os.getenv(
     "ISIC_MODEL_PATH",
     str(BASE_DIR / "checkpoints" / "isic_old" / "best_model.pth")
@@ -79,13 +89,13 @@ ISIC_MODEL_FALLBACK_PATH = Path(os.getenv(
     str(BASE_DIR / "checkpoints" / "isic" / "best_model.pth")
 ))
 
-# ISIC 2020 binary classification model
+# ISIC 2020 binary classification model - local fallback path
 ISIC_2020_BINARY_PATH = Path(os.getenv(
     "ISIC_2020_BINARY_PATH",
     str(BASE_DIR / "checkpoints" / "isic" / "best_model.pth")
 ))
 
-# Infectious disease model directory
+# Infectious disease model directory - local fallback path
 INFECTIOUS_MODEL_DIR = Path(os.getenv(
     "INFECTIOUS_MODEL_DIR",
     str(BASE_DIR / "infectious_disease_model")
