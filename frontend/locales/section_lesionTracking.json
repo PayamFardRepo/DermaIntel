@@ -1,0 +1,45 @@
+{
+  "title": "Lesion Tracking",
+  "backButton": "Back",
+  "addNew": "Add New",
+  "loading": "Loading tracked lesions...",
+  "infoText": "Track specific lesions over time to detect changes early. The AI will automatically compare new photos with previous ones to identify concerning evolution.",
+  "common": {
+    "error": "Error",
+    "loginAgain": "Please log in again",
+    "fetchFailed": "Failed to load lesion groups",
+    "networkError": "Network error. Please try again."
+  },
+  "filters": {
+    "active": "Active ({{count}})",
+    "archived": "Archived"
+  },
+  "summary": {
+    "needAttention": "Need Attention",
+    "overdue": "Overdue",
+    "changesDetected": "Changes Detected"
+  },
+  "emptyState": {
+    "title": "No Tracked Lesions",
+    "subtitle": "Start tracking specific lesions to monitor changes over time",
+    "button": "Create First Lesion Group"
+  },
+  "card": {
+    "attentionRequired": "Attention Required",
+    "checkOverdue": "Check Overdue",
+    "analyses": "analyses",
+    "changeDetected": "Change detected",
+    "growingAt": "Growing at {{rate}} mm²/month",
+    "nextCheck": "Next check:",
+    "lastChecked": "Last checked: {{date}}",
+    "overdue": "Overdue",
+    "notSet": "Not set"
+  },
+  "help": {
+    "title": "How Lesion Tracking Works",
+    "step1": "Create a lesion group to track a specific mole or spot",
+    "step2": "Add analyses to the group over time (weekly, monthly, etc.)",
+    "step3": "AI automatically compares changes in size, color, shape, and symptoms",
+    "step4": "Get alerts for concerning changes or overdue check-ups"
+  }
+}

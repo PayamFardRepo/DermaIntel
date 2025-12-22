@@ -1,0 +1,50 @@
+{
+  "title": "Family History",
+  "backButton": "Back",
+  "loading": "Loading family history...",
+  "infoText": "Track your family's skin cancer history to calculate your genetic risk and get personalized recommendations.",
+  "stats": {
+    "familyMembers": "Family Members",
+    "withSkinCancer": "With Skin Cancer",
+    "withMelanoma": "With Melanoma"
+  },
+  "emptyState": {
+    "title": "No Family History Yet",
+    "subtitle": "Add family members to track skin cancer history and calculate your genetic risk",
+    "button": "Add Family Member"
+  },
+  "card": {
+    "melanoma": "Melanoma",
+    "skinCancer": "Skin Cancer",
+    "healthy": "Healthy",
+    "born": "Born:",
+    "deceased": "(Deceased)",
+    "skinCancers": "skin cancer",
+    "skinCancersPlural": "skin cancers",
+    "melanomas": "melanoma",
+    "melanomasPlural": "melanomas",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteFailed": "Failed to delete family member",
+    "deleteSuccess": "Family member deleted successfully"
+  },
+  "buttons": {
+    "addFamilyMember": "Add Family Member",
+    "viewGeneticRisk": "View Genetic Risk Profile"
+  },
+  "alerts": {
+    "deleteTitle": "Delete Family Member",
+    "deleteMessage": "Are you sure you want to delete this family member?",
+    "deleteSuccess": "Family member deleted"
+  },
+  "common": {
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "authError": "Authentication Error",
+    "sessionExpired": "Session Expired",
+    "loginAgain": "Please log in again",
+    "loadFailed": "Failed to load family history",
+    "networkError": "Network error. Please try again."
+  }
+}

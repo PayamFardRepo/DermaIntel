@@ -1,0 +1,49 @@
+{
+  "loading": "Loading lesion details...",
+  "notFound": "Lesion not found",
+  "goBack": "Go Back",
+  "alerts": {
+    "attentionRequired": "Attention Required",
+    "checkOverdue": "Check-up Overdue",
+    "nextCheckDue": "Next check was due on {{date}}",
+    "archiveTitle": "Archive Lesion",
+    "archiveMessage": "Are you sure you want to archive this lesion? You can restore it later.",
+    "archiveButton": "Archive",
+    "archiveSuccess": "Lesion archived",
+    "archiveFailed": "Failed to archive lesion",
+    "networkError": "Network error",
+    "loginAgain": "Please log in again",
+    "fetchFailed": "Failed to fetch lesion details"
+  },
+  "info": {
+    "location": "Location",
+    "notSpecified": "Not specified",
+    "description": "Description",
+    "analyses": "Analyses",
+    "frequency": "Frequency",
+    "daysSince": "Days Since",
+    "growingAt": "Growing at {{rate}} mm²/month",
+    "nextCheckup": "Next Check-up"
+  },
+  "actions": {
+    "addNewAnalysis": "Add New Analysis",
+    "addAnalysisTitle": "Add New Analysis",
+    "addAnalysisMessage": "Take a photo of this lesion to add to the tracking timeline",
+    "takePhoto": "Take Photo",
+    "cancel": "Cancel"
+  },
+  "charts": {
+    "title": "Tracking Charts"
+  },
+  "timeline": {
+    "title": "Timeline ({{count}} analyses)",
+    "emptyTitle": "No analyses yet",
+    "confidence": "Confidence: {{value}}%",
+    "change": "{{severity}} change",
+    "daysLater": "{{days}} days later"
+  },
+  "history": {
+    "firstNoticed": "First Noticed",
+    "daysAgo": "{{days}} days ago"
+  }
+}

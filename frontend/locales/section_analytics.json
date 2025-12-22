@@ -1,0 +1,69 @@
+{
+  "title": "Predictive Analytics",
+  "backButton": "Back",
+  "loading": "Loading Analytics...",
+  "common": {
+    "back": "Back",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "loginAgain": "Please log in again",
+    "loadFailed": "Failed to load analytics data"
+  },
+  "tabs": {
+    "forecasts": "Forecasts",
+    "schedule": "Schedule",
+    "trends": "Trends"
+  },
+  "forecasts": {
+    "title": "Growth Forecasts",
+    "analyzed": "{{count}} lesion analyzed_one",
+    "analyzed_one": "{{count}} lesion analyzed",
+    "analyzed_other": "{{count}} lesions analyzed",
+    "emptyTitle": "No Forecasts Available",
+    "emptySubtext": "Track lesions over time to generate ML-based growth forecasts",
+    "emptyButton": "Start Tracking Lesions",
+    "currentSize": "Current Size:",
+    "growthRate": "Growth Rate:",
+    "predictedSize": "Predicted Size (90d):",
+    "currentRisk": "Current Risk",
+    "forecastRisk": "90-Day Forecast",
+    "escalationWarning": "{{probability}}% probability of risk escalation",
+    "riskFactors": "Primary Risk Factors:",
+    "nextCheck": "Next check: {{date}}",
+    "confidence": "Forecast Confidence: {{score}}%"
+  },
+  "schedule": {
+    "title": "Personalized Schedule",
+    "regenerate": "↻ Regenerate",
+    "emptyTitle": "No Scheduled Items",
+    "emptySubtext": "Generate a personalized screening schedule based on your risk profile",
+    "emptyButton": "Generate Schedule",
+    "overdue": "⚠️ Overdue ({{count}})",
+    "markComplete": "✓ Mark Complete",
+    "geneticRisk": "🧬 Genetic Risk",
+    "lesionChanges": "📈 Lesion Changes",
+    "generateSuccess": "Schedule generated successfully! {{count}} items created.",
+    "generateFailed": "Failed to generate schedule",
+    "completeTitle": "Mark as Complete",
+    "completeConfirm": "Mark this scheduled item as completed?",
+    "completeSuccess": "Schedule item marked as completed",
+    "completeFailed": "Failed to complete schedule item"
+  },
+  "trends": {
+    "title": "Risk Trends",
+    "snapshots": "{{count}} snapshot_one",
+    "snapshots_one": "{{count}} snapshot",
+    "snapshots_other": "{{count}} snapshots",
+    "emptyTitle": "No Trend Data",
+    "emptySubtext": "Risk trends will appear as you use the app over time",
+    "currentStatus": "Current Status",
+    "overallRisk": "Overall Risk Score",
+    "riskLevel": "Risk Level",
+    "lesionsTracked": "Lesions Tracked",
+    "highRiskLesions": "High Risk Lesions",
+    "melanomaRisk": "Melanoma Risk",
+    "geneticRisk": "Genetic Risk",
+    "historicalTrend": "Historical Trend"
+  }
+}

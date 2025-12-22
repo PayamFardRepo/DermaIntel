@@ -1,0 +1,89 @@
+{
+  "title": "Track Lesion",
+  "subtitleWithAnalysis": "Set up monitoring for this lesion",
+  "subtitleWithoutAnalysis": "Create a new lesion tracking group",
+  "loading": "Loading analysis...",
+  "back": "Back",
+  "analysisPreview": {
+    "title": "Analysis Preview",
+    "diagnosis": "Diagnosis:",
+    "location": "Location:",
+    "date": "Date:",
+    "notSpecified": "Not specified"
+  },
+  "noAnalysisInfo": {
+    "title": "ℹ️ Creating a new tracking group",
+    "description": "You can create a lesion tracking group and link photos to it later. Just provide a name and monitoring frequency to get started."
+  },
+  "lesionName": {
+    "label": "Lesion Name",
+    "required": "*",
+    "helper": "Give this lesion a memorable name (e.g., \"Mole on left shoulder\")",
+    "placeholder": "Enter lesion name"
+  },
+  "description": {
+    "label": "Description (Optional)",
+    "helper": "Add any additional notes about this lesion",
+    "placeholder": "e.g., flat, brown, slightly raised..."
+  },
+  "monitoringFrequency": {
+    "label": "Monitoring Frequency",
+    "required": "*",
+    "helper": "How often would you like to check this lesion?",
+    "weekly": {
+      "label": "Weekly",
+      "description": "Check every 7 days"
+    },
+    "monthly": {
+      "label": "Monthly",
+      "description": "Check every 30 days (recommended)"
+    },
+    "quarterly": {
+      "label": "Quarterly",
+      "description": "Check every 3 months"
+    },
+    "biannual": {
+      "label": "Biannual",
+      "description": "Check every 6 months"
+    },
+    "annual": {
+      "label": "Annual",
+      "description": "Check once per year"
+    }
+  },
+  "firstNoticed": {
+    "label": "When Did You First Notice This Lesion? (Optional)",
+    "helper": "Format: YYYY-MM-DD (e.g., 2024-01-15)",
+    "placeholder": "YYYY-MM-DD"
+  },
+  "nextSteps": {
+    "title": "📅 What happens next?",
+    "description": "• You'll receive reminders when it's time to check this lesion\n• Take new photos at the recommended frequency\n• AI will automatically compare new images with previous ones\n• You'll be alerted if concerning changes are detected\n• View complete timeline and comparison charts anytime"
+  },
+  "button": {
+    "creating": "⏳ Creating...",
+    "create": "✓ Start Tracking This Lesion"
+  },
+  "errors": {
+    "authError": "Authentication Error",
+    "noToken": "No authentication token found. Please log in again.",
+    "sessionExpired": "Session Expired",
+    "pleaseLogin": "Your session has expired. Please log in again.",
+    "notFound": "Not Found",
+    "analysisNotFound": "Analysis with ID {{id}} not found.",
+    "loadError": "Error Loading Analysis",
+    "loadErrorDetails": "Could not load analysis data.\n\nDetails: {{message}}\n\nPlease try again or go back.",
+    "goBack": "Go Back",
+    "retry": "Retry",
+    "requiredField": "Required Field",
+    "enterName": "Please enter a name for this lesion."
+  },
+  "alerts": {
+    "success": "Success!",
+    "successMessage": "Lesion tracking created successfully.\n\nYou'll receive reminders to check this lesion based on your monitoring frequency ({{frequency}}).",
+    "viewTracked": "View Tracked Lesions",
+    "viewDetails": "View Details",
+    "error": "Error",
+    "failedToCreate": "Failed to create lesion group. Please try again."
+  }
+}

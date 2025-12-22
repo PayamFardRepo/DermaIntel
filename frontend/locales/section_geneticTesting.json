@@ -1,0 +1,78 @@
+{
+  "title": "Genetic Testing",
+  "back": "← Back",
+  "infoTitle": "Upload Your Genetic Test Results",
+  "infoText": "Upload genetic test reports to enhance your risk assessment. We support tests for melanoma-related genes including CDKN2A, CDK4, BAP1, and others.",
+  "addButton": "+ Add Genetic Test",
+  "formTitle": "Add Genetic Test",
+  "testName": "Test Name",
+  "testNameRequired": "Test Name *",
+  "testNamePlaceholder": "e.g., Melanoma Genetic Panel",
+  "testDate": "Test Date",
+  "testDatePlaceholder": "YYYY-MM-DD",
+  "laboratory": "Laboratory",
+  "laboratoryPlaceholder": "e.g., GeneDx, Invitae",
+  "mutationsDetected": "Mutations/Variants Detected",
+  "mutationsDetectedRequired": "Mutations/Variants Detected *",
+  "uploadReport": "Upload Test Report (Optional)",
+  "chooseFile": "Choose File (PDF or Image)",
+  "additionalNotes": "Additional Notes",
+  "additionalNotesPlaceholder": "Any additional information...",
+  "cancel": "Cancel",
+  "submit": "Submit",
+  "yourGeneticTests": "Your Genetic Tests",
+  "delete": "Delete",
+  "date": "Date:",
+  "lab": "Lab:",
+  "mutationsTitle": "Mutations Detected:",
+  "noTests": "No genetic tests uploaded yet",
+  "noTestsSubtext": "Add your first genetic test to enhance your risk assessment",
+  "viewRiskProfile": "View Genetic Risk Profile",
+  "error": "Error",
+  "success": "Success",
+  "pleaseLoginAgain": "Please login again",
+  "failedToLoad": "Failed to load genetic tests",
+  "failedToSelect": "Failed to select file",
+  "pleaseEnterTestName": "Please enter a test name",
+  "pleaseSelectMutation": "Please select at least one mutation or variant",
+  "uploadSuccess": "Genetic test uploaded successfully",
+  "uploadFailed": "Failed to upload genetic test",
+  "deleteConfirmTitle": "Delete Test",
+  "deleteConfirmMessage": "Are you sure you want to delete this genetic test?",
+  "deleteSuccess": "Genetic test deleted",
+  "deleteFailed": "Failed to delete test",
+  "mutations": {
+    "CDKN2A": {
+      "name": "CDKN2A",
+      "description": "High melanoma risk"
+    },
+    "CDK4": {
+      "name": "CDK4",
+      "description": "Moderate melanoma risk"
+    },
+    "BAP1": {
+      "name": "BAP1",
+      "description": "BAP1 tumor syndrome"
+    },
+    "MC1R": {
+      "name": "MC1R",
+      "description": "Red hair, fair skin"
+    },
+    "MITF": {
+      "name": "MITF",
+      "description": "Melanoma susceptibility"
+    },
+    "POT1": {
+      "name": "POT1",
+      "description": "Melanoma predisposition"
+    },
+    "TERT": {
+      "name": "TERT",
+      "description": "Melanoma risk factor"
+    },
+    "ACD": {
+      "name": "ACD",
+      "description": "Familial melanoma"
+    }
+  }
+}
