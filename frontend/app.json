@@ -7,7 +7,7 @@
     "icon": "./assets/icon.png",
     "scheme": "SkinLesionDetection",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "hostType": "lan",
     "splash": {
       "image": "./assets/splash-icon.png",
