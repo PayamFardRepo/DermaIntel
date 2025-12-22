@@ -2595,6 +2595,36 @@ export default function PhotoScreen() {
                 style={styles.menuItem}
                 onPress={() => {
                   setShowMenu(false);
+                  router.push('/billing-insurance');
+                }}
+                disabled={isLoading || isClassifying}
+              >
+                <Text style={styles.menuItemIcon}>🏥</Text>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={styles.menuItemText}>Insurance & Appeals</Text>
+                  <Text style={styles.menuItemSubtext}>Pre-auth, claims & appeal letters</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
+                  router.push('/cost-transparency');
+                }}
+                disabled={isLoading || isClassifying}
+              >
+                <Text style={styles.menuItemIcon}>💰</Text>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={styles.menuItemText}>Cost Transparency</Text>
+                  <Text style={styles.menuItemSubtext}>Prices, provider comparison & Rx savings</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
                   router.push('/population-health');
                 }}
                 disabled={isLoading || isClassifying}
@@ -2640,6 +2670,21 @@ export default function PhotoScreen() {
                 style={styles.menuItem}
                 onPress={() => {
                   setShowMenu(false);
+                  router.push('/wearables' as any);
+                }}
+                disabled={isLoading || isClassifying}
+              >
+                <Text style={styles.menuItemIcon}>⌚</Text>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={styles.menuItemText}>Wearable Devices</Text>
+                  <Text style={styles.menuItemSubtext}>Track UV exposure from smartwatch</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
                   router.push('/genetic-testing' as any);
                 }}
                 disabled={isLoading || isClassifying}
@@ -2648,6 +2693,21 @@ export default function PhotoScreen() {
                 <View style={styles.menuItemTextContainer}>
                   <Text style={styles.menuItemText}>Genetic Testing</Text>
                   <Text style={styles.menuItemSubtext}>Upload VCF files & view genetic risk</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
+                  router.push('/clinical-trials' as any);
+                }}
+                disabled={isLoading || isClassifying}
+              >
+                <Text style={styles.menuItemIcon}>🔬</Text>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={styles.menuItemText}>Clinical Trials</Text>
+                  <Text style={styles.menuItemSubtext}>Find matching research studies</Text>
                 </View>
               </Pressable>
 
@@ -2753,6 +2813,96 @@ export default function PhotoScreen() {
                 <View style={styles.menuItemTextContainer}>
                   <Text style={styles.menuItemText}>Biopsy Tracking</Text>
                   <Text style={styles.menuItemSubtext}>Track biopsies & analyze histopathology slides</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
+                  router.push('/ajcc-staging' as any);
+                }}
+                disabled={isLoading || isClassifying}
+              >
+                <Text style={styles.menuItemIcon}>📊</Text>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={styles.menuItemText}>AJCC Staging</Text>
+                  <Text style={styles.menuItemSubtext}>Interactive TNM melanoma staging calculator</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
+                  router.push('/breslow-clark' as any);
+                }}
+                disabled={isLoading || isClassifying}
+              >
+                <Text style={styles.menuItemIcon}>🔬</Text>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={styles.menuItemText}>Breslow/Clark Visualizer</Text>
+                  <Text style={styles.menuItemSubtext}>3D visualization of invasion depth</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
+                  router.push('/survival-estimator' as any);
+                }}
+                disabled={isLoading || isClassifying}
+              >
+                <Text style={styles.menuItemIcon}>📉</Text>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={styles.menuItemText}>Survival Estimator</Text>
+                  <Text style={styles.menuItemSubtext}>ML-based survival curves from tumor data</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
+                  router.push('/sentinel-node-mapper' as any);
+                }}
+                disabled={isLoading || isClassifying}
+              >
+                <Text style={styles.menuItemIcon}>🔗</Text>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={styles.menuItemText}>Sentinel Node Mapper</Text>
+                  <Text style={styles.menuItemSubtext}>Lymph node basin mapping & biopsy tracking</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
+                  router.push('/ai-accuracy' as any);
+                }}
+                disabled={isLoading || isClassifying}
+              >
+                <Text style={styles.menuItemIcon}>📈</Text>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={styles.menuItemText}>AI Accuracy</Text>
+                  <Text style={styles.menuItemSubtext}>Diagnostic accuracy improving over time</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
+                  router.push('/publication-report' as any);
+                }}
+                disabled={isLoading || isClassifying}
+              >
+                <Text style={styles.menuItemIcon}>📄</Text>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={styles.menuItemText}>Publication Report</Text>
+                  <Text style={styles.menuItemSubtext}>Generate publication-ready case reports</Text>
                 </View>
               </Pressable>
 
@@ -4046,12 +4196,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   welcomeText: {
-    color: 'white',
+    color: '#1e3a5f',
     fontSize: 16,
     fontWeight: '600',
   },
   fullNameText: {
-    color: 'rgba(255,255,255,0.8)',
+    color: '#4b5563',
     fontSize: 14,
     marginTop: 2,
   },

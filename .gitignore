@@ -2,3 +2,14 @@
 backend/.venv/
 backend/skin_model/
 __pycache__/
+
+# Windows reserved filenames
+nul
+
+# Embedded git repos
+backend/BLVS/
+
+# IDE and local config
+.claude/
+.expo/
+.vscode/
