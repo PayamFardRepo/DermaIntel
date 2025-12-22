@@ -14,9 +14,6 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage, SupportedLanguage } from '../contexts/LanguageContext';
 import { DisplayModeToggle } from '../components/DisplayModeToggle';
 
-// App icon
-const AppIcon = require('../assets/icon.png');
-
 export default function Settings() {
   const router = useRouter();
   const { t } = useTranslation();
@@ -53,7 +50,7 @@ export default function Settings() {
         >
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
-        <Image source={AppIcon} style={styles.appIcon} />
+        <Image source={require('../assets/icon.png')} style={styles.appIcon} />
         <Text style={styles.headerTitle}>{t('settings.title')}</Text>
       </View>
 

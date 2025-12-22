@@ -5,9 +5,6 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 
-// App icon
-const AppIcon = require('../assets/icon.png');
-
 console.log('🔧 [LoginScreen] Module loaded');
 
 export default function LoginScreen() {
@@ -75,7 +72,7 @@ export default function LoginScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Image source={AppIcon} style={styles.appIcon} />
+      <Image source={require('../assets/icon.png')} style={styles.appIcon} />
 
       <Text style={styles.title}>
         {t('app.title')}
