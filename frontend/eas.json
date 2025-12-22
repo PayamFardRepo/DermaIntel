@@ -4,7 +4,14 @@
     "requireCommit": false
   },
   "build": {
+    "base": {
+      "node": "18.18.0",
+      "env": {
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+      }
+    },
     "development": {
+      "extends": "base",
       "developmentClient": true,
       "distribution": "internal",
       "ios": {
@@ -12,19 +19,23 @@
       }
     },
     "preview": {
+      "extends": "base",
       "distribution": "internal",
       "ios": {
         "simulator": false
       }
     },
     "production": {
+      "extends": "base",
       "ios": {
         "simulator": false
       },
       "android": {
         "buildType": "apk"
       },
-      "node": "18.18.0"
+      "install": {
+        "command": "npm install --legacy-peer-deps"
+      }
     }
   },
   "submit": {
