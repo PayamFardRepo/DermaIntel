@@ -1,8 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
+
+// App icon
+const AppIcon = require('../assets/icon.png');
 
 export default function HelpScreen() {
   const router = useRouter();
@@ -19,6 +22,7 @@ export default function HelpScreen() {
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
+          <Image source={AppIcon} style={styles.appIcon} />
           <Text style={styles.title}>📚 {t('help.title')}</Text>
           <Text style={styles.subtitle}>{t('help.subtitle')}</Text>
         </View>
@@ -3201,6 +3205,12 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 30,
     alignItems: 'center',
+  },
+  appIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 16,
+    marginBottom: 16,
   },
   title: {
     fontSize: 32,

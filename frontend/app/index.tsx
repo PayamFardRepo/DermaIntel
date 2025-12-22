@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
+
+// App icon
+const AppIcon = require('../assets/icon.png');
 
 console.log('🔧 [LoginScreen] Module loaded');
 
@@ -72,6 +75,8 @@ export default function LoginScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      <Image source={AppIcon} style={styles.appIcon} />
+
       <Text style={styles.title}>
         {t('app.title')}
       </Text>
@@ -155,6 +160,12 @@ const styles = StyleSheet.create({
   centered: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  appIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 20,
+    marginBottom: 20,
   },
   input: {
     margin: 3,

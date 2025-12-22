@@ -6,12 +6,16 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useLanguage, SupportedLanguage } from '../contexts/LanguageContext';
 import { DisplayModeToggle } from '../components/DisplayModeToggle';
+
+// App icon
+const AppIcon = require('../assets/icon.png');
 
 export default function Settings() {
   const router = useRouter();
@@ -49,6 +53,7 @@ export default function Settings() {
         >
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
+        <Image source={AppIcon} style={styles.appIcon} />
         <Text style={styles.headerTitle}>{t('settings.title')}</Text>
       </View>
 
@@ -172,6 +177,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
+  },
+  appIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    marginRight: 12,
   },
   content: {
     flex: 1,
