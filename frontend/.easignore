@@ -1,0 +1,35 @@
+# Node modules (EAS installs fresh)
+node_modules
+
+# Expo cache
+.expo
+.expo-shared
+
+# Git
+.git
+
+# IDE
+.vscode
+.idea
+
+# Tests
+__tests__
+__mocks__
+*.test.js
+*.test.ts
+*.test.tsx
+*.spec.js
+*.spec.ts
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Large files
+*.mp4
+*.mov
+*.zip
+*.tar.gz
