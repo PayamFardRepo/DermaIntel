@@ -1086,11 +1086,23 @@ async def get_analysis_stats(
         AnalysisHistory.biopsy_performed == True
     ).count()
 
+    # Calculate average confidence
+    avg_confidence_result = db.query(
+        func.avg(
+            func.coalesce(AnalysisHistory.lesion_confidence, AnalysisHistory.binary_confidence)
+        )
+    ).filter(
+        AnalysisHistory.user_id == current_user.id
+    ).scalar()
+
+    average_confidence = float(avg_confidence_result) if avg_confidence_result is not None else 0.0
+
     return {
         "total_analyses": total,
         "lesion_detections": lesion_count,
         "high_risk_cases": high_risk_count,
-        "biopsies_performed": biopsy_count
+        "biopsies_performed": biopsy_count,
+        "average_confidence": average_confidence
     }
 
 

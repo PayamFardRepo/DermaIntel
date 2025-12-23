@@ -13,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
-import { API_ENDPOINTS } from '../config';
+import { API_BASE_URL } from '../config';
 
 const { width } = Dimensions.get('window');
 
@@ -58,7 +58,7 @@ interface SurvivalResult {
 
 export default function SurvivalEstimatorScreen() {
   const router = useRouter();
-  const { token } = useAuth();
+  const { user } = useAuth();
 
   // Required inputs
   const [breslowThickness, setBreslowThickness] = useState('');
@@ -130,10 +130,10 @@ export default function SurvivalEstimatorScreen() {
         formData.append('tils', tils);
       }
 
-      const response = await fetch(`${API_ENDPOINTS.BASE_URL}/clinical/survival/estimate`, {
+      const response = await fetch(`${API_BASE_URL}/survival/estimate`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${user?.token}`,
         },
         body: formData,
       });

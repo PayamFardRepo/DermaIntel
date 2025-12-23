@@ -615,11 +615,11 @@ export default function PredictiveAnalyticsDashboard() {
       );
     }
 
-    const monthlyData = Object.entries(analysisStats.monthly_analysis_counts)
+    const monthlyData = Object.entries(analysisStats.monthly_analysis_counts || {})
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-6);
 
-    const maxMonthlyCount = Math.max(...monthlyData.map(([, count]) => count), 1);
+    const maxMonthlyCount = Math.max(...monthlyData.map(([, count]) => count as number), 1);
 
     return (
       <View style={styles.statsContainer}>
@@ -632,22 +632,22 @@ export default function PredictiveAnalyticsDashboard() {
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <Text style={styles.statIcon}>📸</Text>
-            <Text style={styles.statValue}>{analysisStats.total_analyses}</Text>
+            <Text style={styles.statValue}>{analysisStats.total_analyses ?? 0}</Text>
             <Text style={styles.statLabel}>Total Analyses</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statIcon}>🔍</Text>
-            <Text style={styles.statValue}>{analysisStats.lesion_detections}</Text>
+            <Text style={styles.statValue}>{analysisStats.lesion_detections ?? 0}</Text>
             <Text style={styles.statLabel}>Lesions Detected</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statIcon}>✓</Text>
-            <Text style={styles.statValue}>{analysisStats.non_lesion_detections}</Text>
+            <Text style={styles.statValue}>{analysisStats.non_lesion_detections ?? 0}</Text>
             <Text style={styles.statLabel}>Non-Lesion</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statIcon}>📈</Text>
-            <Text style={styles.statValue}>{(analysisStats.average_confidence * 100).toFixed(0)}%</Text>
+            <Text style={styles.statValue}>{((analysisStats.average_confidence ?? 0) * 100).toFixed(0)}%</Text>
             <Text style={styles.statLabel}>Avg Confidence</Text>
           </View>
         </View>

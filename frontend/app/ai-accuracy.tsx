@@ -73,12 +73,12 @@ export default function AIAccuracyScreen() {
 
       // Load all data in parallel
       const [overview, conditions, skinTypes, feedback, projections, versions] = await Promise.all([
-        fetch(`${API_BASE_URL}/clinical/ai-accuracy/overview`, { headers }).then(r => r.json()),
-        fetch(`${API_BASE_URL}/clinical/ai-accuracy/by-condition`, { headers }).then(r => r.json()),
-        fetch(`${API_BASE_URL}/clinical/ai-accuracy/by-skin-type`, { headers }).then(r => r.json()),
-        fetch(`${API_BASE_URL}/clinical/ai-accuracy/feedback-impact`, { headers }).then(r => r.json()),
-        fetch(`${API_BASE_URL}/clinical/ai-accuracy/projections`, { headers }).then(r => r.json()),
-        fetch(`${API_BASE_URL}/clinical/ai-accuracy/model-versions`, { headers }).then(r => r.json()),
+        fetch(`${API_BASE_URL}/ai-accuracy/overview`, { headers }).then(r => r.json()),
+        fetch(`${API_BASE_URL}/ai-accuracy/by-condition`, { headers }).then(r => r.json()),
+        fetch(`${API_BASE_URL}/ai-accuracy/by-skin-type`, { headers }).then(r => r.json()),
+        fetch(`${API_BASE_URL}/ai-accuracy/feedback-impact`, { headers }).then(r => r.json()),
+        fetch(`${API_BASE_URL}/ai-accuracy/projections`, { headers }).then(r => r.json()),
+        fetch(`${API_BASE_URL}/ai-accuracy/model-versions`, { headers }).then(r => r.json()),
       ]);
 
       setOverviewData(overview);
