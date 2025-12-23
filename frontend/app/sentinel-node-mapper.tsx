@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
-import { API_ENDPOINTS } from '../config';
+import { API_BASE_URL } from '../config';
 
 const { width } = Dimensions.get('window');
 
@@ -57,7 +57,7 @@ type TabType = 'map' | 'record' | 'history';
 
 export default function SentinelNodeMapperScreen() {
   const router = useRouter();
-  const { token } = useAuth();
+  const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabType>('map');
   const [isLoading, setIsLoading] = useState(false);
@@ -111,8 +111,8 @@ export default function SentinelNodeMapperScreen() {
 
   const loadResultCategories = async () => {
     try {
-      const response = await fetch(`${API_ENDPOINTS.BASE_URL}/clinical/sentinel-node/result-categories`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+      const response = await fetch(`${API_BASE_URL}/sentinel-node/result-categories`, {
+        headers: { 'Authorization': `Bearer ${user?.token}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -126,8 +126,8 @@ export default function SentinelNodeMapperScreen() {
   const loadBiopsyHistory = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_ENDPOINTS.BASE_URL}/clinical/sentinel-node/biopsies`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+      const response = await fetch(`${API_BASE_URL}/sentinel-node/biopsies`, {
+        headers: { 'Authorization': `Bearer ${user?.token}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -158,9 +158,9 @@ export default function SentinelNodeMapperScreen() {
         formData.append('laterality', laterality);
       }
 
-      const response = await fetch(`${API_ENDPOINTS.BASE_URL}/clinical/sentinel-node/map-drainage`, {
+      const response = await fetch(`${API_BASE_URL}/sentinel-node/map-drainage`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { 'Authorization': `Bearer ${user?.token}` },
         body: formData,
       });
 
@@ -208,9 +208,9 @@ export default function SentinelNodeMapperScreen() {
         formData.append('notes', notes);
       }
 
-      const response = await fetch(`${API_ENDPOINTS.BASE_URL}/clinical/sentinel-node/record-biopsy`, {
+      const response = await fetch(`${API_BASE_URL}/sentinel-node/record-biopsy`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { 'Authorization': `Bearer ${user?.token}` },
         body: formData,
       });
 
