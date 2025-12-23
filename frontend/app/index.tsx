@@ -72,8 +72,6 @@ export default function LoginScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Image source={require('../assets/icon.png')} style={styles.appIcon} />
-
       <Text style={styles.title}>
         {t('app.title')}
       </Text>
@@ -157,12 +155,6 @@ const styles = StyleSheet.create({
   centered: {
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  appIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 20,
-    marginBottom: 20,
   },
   input: {
     margin: 3,

@@ -3942,3 +3942,649 @@ async def get_accuracy_projections():
             "note": "Inter-rater variability among dermatologists sets the practical ceiling",
         },
     }
+
+
+# ============================================================================
+# MALPRACTICE SHIELD - Liability Analysis & Insurance Coverage Recommendations
+# ============================================================================
+
+# Risk factors and liability data
+MALPRACTICE_DATA = {
+    "high_risk_conditions": {
+        "melanoma": {
+            "risk_level": "very_high",
+            "risk_score": 95,
+            "common_claims": [
+                "Delayed diagnosis",
+                "Failure to biopsy suspicious lesion",
+                "Inadequate follow-up",
+                "Misinterpretation of pathology",
+            ],
+            "average_settlement": 850000,
+            "median_settlement": 425000,
+            "documentation_requirements": [
+                "Detailed dermoscopy findings",
+                "ABCDE criteria assessment",
+                "Photo documentation with measurement",
+                "Biopsy recommendation and patient response",
+                "Follow-up schedule documented",
+            ],
+        },
+        "squamous_cell_carcinoma": {
+            "risk_level": "high",
+            "risk_score": 75,
+            "common_claims": [
+                "Delayed treatment",
+                "Inadequate margins",
+                "Failure to assess metastatic risk",
+            ],
+            "average_settlement": 320000,
+            "median_settlement": 175000,
+            "documentation_requirements": [
+                "Lesion size and location",
+                "Risk factor assessment",
+                "Treatment plan rationale",
+                "Margin documentation",
+            ],
+        },
+        "basal_cell_carcinoma": {
+            "risk_level": "moderate",
+            "risk_score": 45,
+            "common_claims": [
+                "Cosmetic outcome dissatisfaction",
+                "Recurrence due to inadequate treatment",
+            ],
+            "average_settlement": 125000,
+            "median_settlement": 65000,
+            "documentation_requirements": [
+                "Treatment options discussed",
+                "Cosmetic expectations documented",
+                "Informed consent comprehensive",
+            ],
+        },
+        "psoriasis": {
+            "risk_level": "low",
+            "risk_score": 25,
+            "common_claims": [
+                "Medication side effects",
+                "Failure to monitor biologics",
+            ],
+            "average_settlement": 85000,
+            "median_settlement": 45000,
+            "documentation_requirements": [
+                "Lab monitoring records",
+                "Side effect counseling",
+                "Treatment response tracking",
+            ],
+        },
+        "eczema": {
+            "risk_level": "low",
+            "risk_score": 20,
+            "common_claims": [
+                "Steroid side effects",
+                "Delayed referral for severe cases",
+            ],
+            "average_settlement": 55000,
+            "median_settlement": 30000,
+            "documentation_requirements": [
+                "Severity assessment",
+                "Steroid potency and duration",
+                "Referral criteria evaluation",
+            ],
+        },
+    },
+    "documentation_score_factors": {
+        "photo_documentation": 15,
+        "detailed_history": 15,
+        "physical_exam_documented": 15,
+        "differential_diagnosis": 10,
+        "treatment_rationale": 15,
+        "informed_consent": 15,
+        "follow_up_plan": 10,
+        "patient_education": 5,
+    },
+    "insurance_coverage_types": {
+        "occurrence": {
+            "description": "Covers claims from incidents during policy period, regardless of when claim is filed",
+            "pros": ["Lifetime coverage for policy period incidents", "No tail coverage needed"],
+            "cons": ["Higher premiums", "Less common"],
+            "recommended_for": ["Established practices", "Near-retirement physicians"],
+        },
+        "claims_made": {
+            "description": "Covers claims made during policy period for incidents during policy period",
+            "pros": ["Lower initial premiums", "More common/available"],
+            "cons": ["Requires tail coverage", "Gaps possible"],
+            "recommended_for": ["New practices", "Budget-conscious practices"],
+        },
+    },
+    "coverage_recommendations": {
+        "solo_practice": {
+            "min_per_occurrence": 1000000,
+            "min_aggregate": 3000000,
+            "recommended_per_occurrence": 2000000,
+            "recommended_aggregate": 6000000,
+        },
+        "group_practice": {
+            "min_per_occurrence": 1000000,
+            "min_aggregate": 3000000,
+            "recommended_per_occurrence": 3000000,
+            "recommended_aggregate": 9000000,
+        },
+        "academic_medical_center": {
+            "min_per_occurrence": 2000000,
+            "min_aggregate": 6000000,
+            "recommended_per_occurrence": 5000000,
+            "recommended_aggregate": 15000000,
+        },
+    },
+    "risk_mitigation_strategies": [
+        {
+            "strategy": "Standardized Documentation Templates",
+            "effectiveness": "high",
+            "implementation_cost": "low",
+            "description": "Use consistent templates for all skin lesion evaluations",
+            "premium_reduction": "5-10%",
+        },
+        {
+            "strategy": "AI-Assisted Diagnosis Logging",
+            "effectiveness": "high",
+            "implementation_cost": "medium",
+            "description": "Document AI confidence levels and reasoning for all assessments",
+            "premium_reduction": "3-5%",
+        },
+        {
+            "strategy": "Patient Communication Documentation",
+            "effectiveness": "very_high",
+            "implementation_cost": "low",
+            "description": "Document all patient communications about diagnoses and follow-up",
+            "premium_reduction": "8-12%",
+        },
+        {
+            "strategy": "Peer Review Program",
+            "effectiveness": "high",
+            "implementation_cost": "medium",
+            "description": "Regular case reviews with colleagues for complex cases",
+            "premium_reduction": "5-8%",
+        },
+        {
+            "strategy": "CME in Dermoscopy",
+            "effectiveness": "medium",
+            "implementation_cost": "low",
+            "description": "Annual continuing education in dermoscopy techniques",
+            "premium_reduction": "2-3%",
+        },
+        {
+            "strategy": "Biopsy Threshold Protocol",
+            "effectiveness": "very_high",
+            "implementation_cost": "low",
+            "description": "Clear protocols for when to recommend biopsy",
+            "premium_reduction": "10-15%",
+        },
+    ],
+}
+
+
+@router.post("/malpractice/analyze-risk")
+async def analyze_malpractice_risk(
+    diagnosis: str = Form(...),
+    confidence_level: float = Form(...),
+    documentation_completeness: str = Form(None),  # JSON string of documentation items
+    patient_factors: str = Form(None),  # JSON string of patient risk factors
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Analyze malpractice liability risk for a specific diagnosis.
+    Returns risk assessment and mitigation recommendations.
+    """
+    import json
+
+    diagnosis_lower = diagnosis.lower().replace(" ", "_").replace("-", "_")
+
+    # Find matching condition
+    condition_data = None
+    matched_condition = None
+    for condition, data in MALPRACTICE_DATA["high_risk_conditions"].items():
+        if condition in diagnosis_lower or diagnosis_lower in condition:
+            condition_data = data
+            matched_condition = condition
+            break
+
+    # Default for unknown conditions
+    if not condition_data:
+        condition_data = {
+            "risk_level": "moderate",
+            "risk_score": 50,
+            "common_claims": ["Misdiagnosis", "Delayed treatment"],
+            "average_settlement": 200000,
+            "median_settlement": 100000,
+            "documentation_requirements": [
+                "Complete history and physical",
+                "Differential diagnosis",
+                "Treatment rationale",
+            ],
+        }
+        matched_condition = "general_dermatology"
+
+    # Parse documentation completeness
+    doc_items = {}
+    if documentation_completeness:
+        try:
+            doc_items = json.loads(documentation_completeness)
+        except:
+            pass
+
+    # Calculate documentation score
+    doc_score = 0
+    doc_factors = MALPRACTICE_DATA["documentation_score_factors"]
+    missing_documentation = []
+
+    for item, points in doc_factors.items():
+        if doc_items.get(item, False):
+            doc_score += points
+        else:
+            missing_documentation.append({
+                "item": item.replace("_", " ").title(),
+                "points": points,
+                "priority": "high" if points >= 15 else "medium" if points >= 10 else "low",
+            })
+
+    # Adjust risk based on confidence and documentation
+    base_risk = condition_data["risk_score"]
+
+    # Lower confidence increases risk
+    confidence_adjustment = (1 - confidence_level) * 20
+
+    # Poor documentation increases risk
+    doc_adjustment = (100 - doc_score) * 0.3
+
+    adjusted_risk = min(100, base_risk + confidence_adjustment + doc_adjustment)
+
+    # Determine risk category
+    if adjusted_risk >= 80:
+        risk_category = "critical"
+        risk_color = "#dc3545"
+    elif adjusted_risk >= 60:
+        risk_category = "high"
+        risk_color = "#fd7e14"
+    elif adjusted_risk >= 40:
+        risk_category = "moderate"
+        risk_color = "#ffc107"
+    else:
+        risk_category = "low"
+        risk_color = "#28a745"
+
+    # Get relevant mitigation strategies
+    mitigation_strategies = []
+    for strategy in MALPRACTICE_DATA["risk_mitigation_strategies"]:
+        relevance = "high" if adjusted_risk >= 60 else "medium" if adjusted_risk >= 40 else "standard"
+        mitigation_strategies.append({
+            **strategy,
+            "relevance": relevance,
+        })
+
+    # Sort by effectiveness
+    effectiveness_order = {"very_high": 0, "high": 1, "medium": 2, "low": 3}
+    mitigation_strategies.sort(key=lambda x: effectiveness_order.get(x["effectiveness"], 2))
+
+    return {
+        "diagnosis": diagnosis,
+        "matched_condition": matched_condition.replace("_", " ").title(),
+        "risk_assessment": {
+            "base_risk_score": base_risk,
+            "adjusted_risk_score": round(adjusted_risk, 1),
+            "risk_category": risk_category,
+            "risk_color": risk_color,
+            "risk_level": condition_data["risk_level"],
+        },
+        "liability_exposure": {
+            "average_settlement": condition_data["average_settlement"],
+            "average_settlement_formatted": f"${condition_data['average_settlement']:,}",
+            "median_settlement": condition_data["median_settlement"],
+            "median_settlement_formatted": f"${condition_data['median_settlement']:,}",
+            "common_claims": condition_data["common_claims"],
+        },
+        "documentation_analysis": {
+            "current_score": doc_score,
+            "max_score": 100,
+            "score_percentage": f"{doc_score}%",
+            "grade": "A" if doc_score >= 90 else "B" if doc_score >= 80 else "C" if doc_score >= 70 else "D" if doc_score >= 60 else "F",
+            "missing_items": missing_documentation,
+            "required_documentation": condition_data["documentation_requirements"],
+        },
+        "confidence_impact": {
+            "ai_confidence": f"{confidence_level*100:.1f}%",
+            "confidence_risk_adjustment": round(confidence_adjustment, 1),
+            "recommendation": "Consider additional evaluation or referral" if confidence_level < 0.7 else "Confidence level acceptable",
+        },
+        "mitigation_strategies": mitigation_strategies[:5],
+        "immediate_actions": [
+            action for action in missing_documentation if action["priority"] == "high"
+        ][:3],
+    }
+
+
+@router.get("/malpractice/insurance-recommendations")
+async def get_insurance_recommendations(
+    practice_type: str = Query("solo_practice", description="solo_practice, group_practice, or academic_medical_center"),
+    annual_patient_volume: int = Query(2000, description="Approximate annual patient volume"),
+    high_risk_procedures: bool = Query(False, description="Whether practice performs high-risk procedures"),
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Get malpractice insurance coverage recommendations based on practice profile.
+    """
+    coverage = MALPRACTICE_DATA["coverage_recommendations"].get(
+        practice_type,
+        MALPRACTICE_DATA["coverage_recommendations"]["solo_practice"]
+    )
+
+    # Adjust based on volume and risk
+    volume_multiplier = 1.0
+    if annual_patient_volume > 5000:
+        volume_multiplier = 1.5
+    elif annual_patient_volume > 3000:
+        volume_multiplier = 1.25
+
+    risk_multiplier = 1.5 if high_risk_procedures else 1.0
+
+    adjusted_recommended = {
+        "per_occurrence": int(coverage["recommended_per_occurrence"] * volume_multiplier * risk_multiplier),
+        "aggregate": int(coverage["recommended_aggregate"] * volume_multiplier * risk_multiplier),
+    }
+
+    # Estimate premium range
+    base_premium = 15000 if practice_type == "solo_practice" else 25000 if practice_type == "group_practice" else 40000
+    premium_range = {
+        "minimum_coverage": {
+            "low": int(base_premium * 0.8),
+            "high": int(base_premium * 1.2),
+        },
+        "recommended_coverage": {
+            "low": int(base_premium * volume_multiplier * risk_multiplier * 0.9),
+            "high": int(base_premium * volume_multiplier * risk_multiplier * 1.3),
+        },
+    }
+
+    return {
+        "practice_profile": {
+            "type": practice_type.replace("_", " ").title(),
+            "annual_volume": annual_patient_volume,
+            "high_risk_procedures": high_risk_procedures,
+        },
+        "minimum_coverage": {
+            "per_occurrence": coverage["min_per_occurrence"],
+            "per_occurrence_formatted": f"${coverage['min_per_occurrence']:,}",
+            "aggregate": coverage["min_aggregate"],
+            "aggregate_formatted": f"${coverage['min_aggregate']:,}",
+            "notation": f"${coverage['min_per_occurrence']//1000000}M/${coverage['min_aggregate']//1000000}M",
+        },
+        "recommended_coverage": {
+            "per_occurrence": adjusted_recommended["per_occurrence"],
+            "per_occurrence_formatted": f"${adjusted_recommended['per_occurrence']:,}",
+            "aggregate": adjusted_recommended["aggregate"],
+            "aggregate_formatted": f"${adjusted_recommended['aggregate']:,}",
+            "notation": f"${adjusted_recommended['per_occurrence']//1000000}M/${adjusted_recommended['aggregate']//1000000}M",
+        },
+        "estimated_annual_premium": {
+            "minimum_coverage_range": f"${premium_range['minimum_coverage']['low']:,} - ${premium_range['minimum_coverage']['high']:,}",
+            "recommended_coverage_range": f"${premium_range['recommended_coverage']['low']:,} - ${premium_range['recommended_coverage']['high']:,}",
+        },
+        "coverage_types": MALPRACTICE_DATA["insurance_coverage_types"],
+        "recommendation": "claims_made" if practice_type == "solo_practice" else "occurrence",
+        "recommendation_rationale": "Claims-made policies offer lower initial premiums for newer/smaller practices, while occurrence policies provide better long-term protection for established practices.",
+        "additional_coverage_considerations": [
+            {
+                "type": "Cyber Liability",
+                "reason": "AI-assisted diagnosis systems process sensitive patient data",
+                "recommended_limit": "$1,000,000",
+            },
+            {
+                "type": "Tail Coverage",
+                "reason": "Essential if switching from claims-made policy",
+                "recommended_limit": "Match primary policy limits",
+            },
+            {
+                "type": "Consent to Settle",
+                "reason": "Gives you control over settlement decisions",
+                "recommended": True,
+            },
+        ],
+    }
+
+
+@router.get("/malpractice/documentation-checklist")
+async def get_documentation_checklist(
+    condition_type: str = Query("general", description="Type of condition: melanoma, skin_cancer, inflammatory, general"),
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Get comprehensive documentation checklist to minimize liability risk.
+    """
+    base_checklist = [
+        {"item": "Patient demographics and identifiers", "category": "Administrative", "required": True},
+        {"item": "Chief complaint in patient's words", "category": "History", "required": True},
+        {"item": "History of present illness (onset, duration, changes)", "category": "History", "required": True},
+        {"item": "Past medical history", "category": "History", "required": True},
+        {"item": "Family history of skin conditions/cancer", "category": "History", "required": True},
+        {"item": "Medication list including OTC", "category": "History", "required": True},
+        {"item": "Allergy documentation", "category": "History", "required": True},
+        {"item": "Social history (sun exposure, tanning)", "category": "History", "required": True},
+    ]
+
+    exam_checklist = [
+        {"item": "Full skin examination performed (Y/N)", "category": "Physical Exam", "required": True},
+        {"item": "Lesion location documented", "category": "Physical Exam", "required": True},
+        {"item": "Lesion size with measurement", "category": "Physical Exam", "required": True},
+        {"item": "Color description", "category": "Physical Exam", "required": True},
+        {"item": "Border characteristics", "category": "Physical Exam", "required": True},
+        {"item": "Surface features (texture, scale)", "category": "Physical Exam", "required": True},
+        {"item": "Photographic documentation", "category": "Physical Exam", "required": True},
+    ]
+
+    assessment_checklist = [
+        {"item": "Clinical impression/diagnosis", "category": "Assessment", "required": True},
+        {"item": "Differential diagnosis list", "category": "Assessment", "required": True},
+        {"item": "AI-assisted diagnosis confidence level", "category": "Assessment", "required": False},
+        {"item": "Dermoscopy findings (if performed)", "category": "Assessment", "required": False},
+    ]
+
+    plan_checklist = [
+        {"item": "Treatment plan documented", "category": "Plan", "required": True},
+        {"item": "Rationale for treatment choice", "category": "Plan", "required": True},
+        {"item": "Patient education provided", "category": "Plan", "required": True},
+        {"item": "Follow-up schedule", "category": "Plan", "required": True},
+        {"item": "Warning signs to watch for", "category": "Plan", "required": True},
+    ]
+
+    consent_checklist = [
+        {"item": "Informed consent for procedure", "category": "Consent", "required": True},
+        {"item": "Risks discussed and documented", "category": "Consent", "required": True},
+        {"item": "Alternatives discussed", "category": "Consent", "required": True},
+        {"item": "Patient questions addressed", "category": "Consent", "required": True},
+    ]
+
+    # Condition-specific additions
+    condition_specific = []
+
+    if condition_type == "melanoma" or condition_type == "skin_cancer":
+        condition_specific = [
+            {"item": "ABCDE criteria assessment", "category": "Melanoma-Specific", "required": True},
+            {"item": "Breslow thickness (if biopsied)", "category": "Melanoma-Specific", "required": True},
+            {"item": "Ulceration status", "category": "Melanoma-Specific", "required": True},
+            {"item": "Mitotic rate", "category": "Melanoma-Specific", "required": True},
+            {"item": "Sentinel node evaluation discussed", "category": "Melanoma-Specific", "required": True},
+            {"item": "Staging documented", "category": "Melanoma-Specific", "required": True},
+            {"item": "Referral to oncology (if indicated)", "category": "Melanoma-Specific", "required": False},
+            {"item": "Genetic counseling discussed (if indicated)", "category": "Melanoma-Specific", "required": False},
+        ]
+    elif condition_type == "inflammatory":
+        condition_specific = [
+            {"item": "Severity score (PASI, EASI, etc.)", "category": "Inflammatory-Specific", "required": True},
+            {"item": "Previous treatments and responses", "category": "Inflammatory-Specific", "required": True},
+            {"item": "Quality of life impact assessment", "category": "Inflammatory-Specific", "required": True},
+            {"item": "Biologic screening labs (if applicable)", "category": "Inflammatory-Specific", "required": False},
+            {"item": "TB screening (if starting biologics)", "category": "Inflammatory-Specific", "required": False},
+        ]
+
+    all_items = base_checklist + exam_checklist + assessment_checklist + plan_checklist + consent_checklist + condition_specific
+
+    return {
+        "condition_type": condition_type,
+        "total_items": len(all_items),
+        "required_items": len([i for i in all_items if i["required"]]),
+        "checklist": all_items,
+        "categories": {
+            "Administrative": [i for i in all_items if i["category"] == "Administrative"],
+            "History": [i for i in all_items if i["category"] == "History"],
+            "Physical Exam": [i for i in all_items if i["category"] == "Physical Exam"],
+            "Assessment": [i for i in all_items if i["category"] == "Assessment"],
+            "Plan": [i for i in all_items if i["category"] == "Plan"],
+            "Consent": [i for i in all_items if i["category"] == "Consent"],
+            "Condition-Specific": condition_specific,
+        },
+        "tips": [
+            "Document in real-time rather than at end of day",
+            "Use specific measurements rather than vague descriptions",
+            "Record patient's understanding of diagnosis and plan",
+            "Document any patient non-compliance or missed appointments",
+            "Always document when patient declines recommended procedures",
+        ],
+    }
+
+
+@router.get("/malpractice/claim-statistics")
+async def get_claim_statistics(
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Get dermatology malpractice claim statistics and trends.
+    """
+    return {
+        "overview": {
+            "specialty_ranking": "Dermatology ranks among the lower-risk specialties for malpractice claims",
+            "annual_claim_rate": "2-3% of dermatologists face a claim annually",
+            "claims_resulting_in_payment": "Approximately 20-25% of claims result in payment",
+        },
+        "claim_breakdown_by_type": [
+            {"type": "Failure to Diagnose Melanoma", "percentage": 35, "avg_payout": 850000},
+            {"type": "Surgical Complications", "percentage": 20, "avg_payout": 225000},
+            {"type": "Medication Side Effects", "percentage": 15, "avg_payout": 125000},
+            {"type": "Cosmetic Outcome Dissatisfaction", "percentage": 12, "avg_payout": 95000},
+            {"type": "Delayed Treatment", "percentage": 10, "avg_payout": 175000},
+            {"type": "Other", "percentage": 8, "avg_payout": 85000},
+        ],
+        "trends": [
+            {
+                "trend": "Increasing melanoma-related claims",
+                "direction": "up",
+                "note": "Early detection expectations rising with AI availability",
+            },
+            {
+                "trend": "Telemedicine-related claims",
+                "direction": "up",
+                "note": "New category emerging with remote diagnosis",
+            },
+            {
+                "trend": "Documentation-related defenses",
+                "direction": "up",
+                "note": "Better documentation improving defense outcomes",
+            },
+        ],
+        "defense_success_factors": [
+            {"factor": "Complete photo documentation", "impact": "Reduces unfavorable outcome by 40%"},
+            {"factor": "Documented differential diagnosis", "impact": "Reduces unfavorable outcome by 35%"},
+            {"factor": "Timely follow-up documented", "impact": "Reduces unfavorable outcome by 30%"},
+            {"factor": "Patient education documented", "impact": "Reduces unfavorable outcome by 25%"},
+            {"factor": "Peer consultation documented", "impact": "Reduces unfavorable outcome by 20%"},
+        ],
+        "high_risk_scenarios": [
+            {
+                "scenario": "Pigmented lesion in difficult location (scalp, between toes)",
+                "risk_level": "very_high",
+                "recommendation": "Lower threshold for biopsy, document reasoning thoroughly",
+            },
+            {
+                "scenario": "Patient with history of melanoma presenting with new lesion",
+                "risk_level": "very_high",
+                "recommendation": "Document full body exam, consider total body photography",
+            },
+            {
+                "scenario": "Lesion that changed between visits",
+                "risk_level": "high",
+                "recommendation": "Document comparison, strong consideration for biopsy",
+            },
+            {
+                "scenario": "Patient requesting specific diagnosis against clinical judgment",
+                "risk_level": "high",
+                "recommendation": "Document patient request and your clinical reasoning",
+            },
+        ],
+    }
+
+
+@router.get("/malpractice/risk-mitigation-tips")
+async def get_risk_mitigation_tips(
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Get comprehensive risk mitigation tips for dermatology practice.
+    """
+    return {
+        "strategies": MALPRACTICE_DATA["risk_mitigation_strategies"],
+        "communication_tips": [
+            {
+                "tip": "Set realistic expectations",
+                "details": "Clearly explain limitations of visual diagnosis and AI assistance",
+            },
+            {
+                "tip": "Document patient understanding",
+                "details": "Note that patient verbalized understanding of diagnosis and plan",
+            },
+            {
+                "tip": "Provide written instructions",
+                "details": "Give patients take-home instructions for wound care and warning signs",
+            },
+            {
+                "tip": "Encourage questions",
+                "details": "Document that patient was given opportunity to ask questions",
+            },
+            {
+                "tip": "Use teach-back method",
+                "details": "Have patient repeat back key instructions to confirm understanding",
+            },
+        ],
+        "documentation_best_practices": [
+            "Document in real-time or immediately after encounter",
+            "Use objective descriptions (mm measurements vs. 'small')",
+            "Include pertinent negatives in physical exam",
+            "Document clinical decision-making rationale",
+            "Note any deviations from standard protocols and why",
+            "Record all patient communications including phone calls",
+            "Document missed appointments and follow-up attempts",
+        ],
+        "ai_specific_guidance": [
+            {
+                "practice": "Document AI confidence levels",
+                "rationale": "Shows due diligence in utilizing diagnostic tools",
+            },
+            {
+                "practice": "Note when AI recommendation differs from clinical judgment",
+                "rationale": "Demonstrates independent clinical reasoning",
+            },
+            {
+                "practice": "Record AI version and date of analysis",
+                "rationale": "Creates audit trail for quality improvement",
+            },
+            {
+                "practice": "Document patient consent for AI-assisted diagnosis",
+                "rationale": "Ensures informed consent includes technology use",
+            },
+        ],
+        "when_to_refer": [
+            "Diagnosis uncertain after dermoscopy",
+            "Lesion with atypical features but patient declines biopsy",
+            "Treatment not responding as expected",
+            "Patient requests second opinion",
+            "Complex medical-legal situation",
+        ],
+    }

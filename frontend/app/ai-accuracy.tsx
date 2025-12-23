@@ -12,7 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
-import { API_ENDPOINTS } from '../config';
+import { API_BASE_URL } from '../config';
 
 const { width } = Dimensions.get('window');
 
@@ -73,12 +73,12 @@ export default function AIAccuracyScreen() {
 
       // Load all data in parallel
       const [overview, conditions, skinTypes, feedback, projections, versions] = await Promise.all([
-        fetch(`${API_ENDPOINTS.BASE_URL}/clinical/ai-accuracy/overview`, { headers }).then(r => r.json()),
-        fetch(`${API_ENDPOINTS.BASE_URL}/clinical/ai-accuracy/by-condition`, { headers }).then(r => r.json()),
-        fetch(`${API_ENDPOINTS.BASE_URL}/clinical/ai-accuracy/by-skin-type`, { headers }).then(r => r.json()),
-        fetch(`${API_ENDPOINTS.BASE_URL}/clinical/ai-accuracy/feedback-impact`, { headers }).then(r => r.json()),
-        fetch(`${API_ENDPOINTS.BASE_URL}/clinical/ai-accuracy/projections`, { headers }).then(r => r.json()),
-        fetch(`${API_ENDPOINTS.BASE_URL}/clinical/ai-accuracy/model-versions`, { headers }).then(r => r.json()),
+        fetch(`${API_BASE_URL}/clinical/ai-accuracy/overview`, { headers }).then(r => r.json()),
+        fetch(`${API_BASE_URL}/clinical/ai-accuracy/by-condition`, { headers }).then(r => r.json()),
+        fetch(`${API_BASE_URL}/clinical/ai-accuracy/by-skin-type`, { headers }).then(r => r.json()),
+        fetch(`${API_BASE_URL}/clinical/ai-accuracy/feedback-impact`, { headers }).then(r => r.json()),
+        fetch(`${API_BASE_URL}/clinical/ai-accuracy/projections`, { headers }).then(r => r.json()),
+        fetch(`${API_BASE_URL}/clinical/ai-accuracy/model-versions`, { headers }).then(r => r.json()),
       ]);
 
       setOverviewData(overview);

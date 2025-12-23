@@ -1,7 +1,31 @@
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../config';
 
 console.log('🔧 [AuthService] Module loaded, API_BASE_URL:', API_BASE_URL);
+
+// Storage abstraction - use SecureStore on native, AsyncStorage on web
+const Storage = {
+  async setItemAsync(key, value) {
+    if (Platform.OS === 'web') {
+      return AsyncStorage.setItem(key, value);
+    }
+    return SecureStore.setItemAsync(key, value);
+  },
+  async getItemAsync(key) {
+    if (Platform.OS === 'web') {
+      return AsyncStorage.getItem(key);
+    }
+    return SecureStore.getItemAsync(key);
+  },
+  async deleteItemAsync(key) {
+    if (Platform.OS === 'web') {
+      return AsyncStorage.removeItem(key);
+    }
+    return SecureStore.deleteItemAsync(key);
+  }
+};
 
 // Helper function to test if backend is reachable
 async function testBackendConnection() {
@@ -77,7 +101,7 @@ class AuthService {
       console.log('[AuthService] Token received, storing...');
 
       // Store token securely
-      await SecureStore.setItemAsync('auth_token', this.token);
+      await Storage.setItemAsync('auth_token', this.token);
       console.log('[AuthService] Token stored, getting user info...');
 
       // Get user info
@@ -85,7 +109,7 @@ class AuthService {
       this.user = user;
 
       // Also cache user info for offline use
-      await SecureStore.setItemAsync('cached_user', JSON.stringify(user));
+      await Storage.setItemAsync('cached_user', JSON.stringify(user));
       console.log('[AuthService] User info retrieved and cached:', user);
 
       // Return user object with token included
@@ -181,8 +205,8 @@ class AuthService {
 
   async logout() {
     try {
-      await SecureStore.deleteItemAsync('auth_token');
-      await SecureStore.deleteItemAsync('cached_user');
+      await Storage.deleteItemAsync('auth_token');
+      await Storage.deleteItemAsync('cached_user');
       this.token = null;
       this.user = null;
     } catch (error) {
@@ -193,8 +217,8 @@ class AuthService {
   async loadStoredToken() {
     try {
       console.log('[AuthService] Loading stored token...');
-      const storedToken = await SecureStore.getItemAsync('auth_token');
-      const cachedUser = await SecureStore.getItemAsync('cached_user');
+      const storedToken = await Storage.getItemAsync('auth_token');
+      const cachedUser = await Storage.getItemAsync('cached_user');
 
       if (storedToken) {
         this.token = storedToken;
@@ -221,7 +245,7 @@ class AuthService {
 
           // Update cache with fresh user data
           this.user = freshUser;
-          await SecureStore.setItemAsync('cached_user', JSON.stringify(freshUser));
+          await Storage.setItemAsync('cached_user', JSON.stringify(freshUser));
           console.log('[AuthService] Token is valid, user refreshed successfully');
           return true;
         } catch (error) {
@@ -233,8 +257,8 @@ class AuthService {
               error.message.includes('Could not validate') ||
               error.message.includes('401')) {
             console.log('[AuthService] Token is expired/invalid, clearing stored session');
-            await SecureStore.deleteItemAsync('auth_token');
-            await SecureStore.deleteItemAsync('cached_user');
+            await Storage.deleteItemAsync('auth_token');
+            await Storage.deleteItemAsync('cached_user');
             this.token = null;
             this.user = null;
             return false;

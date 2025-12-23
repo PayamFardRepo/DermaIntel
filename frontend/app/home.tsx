@@ -2895,6 +2895,21 @@ export default function PhotoScreen() {
                 style={styles.menuItem}
                 onPress={() => {
                   setShowMenu(false);
+                  router.push('/malpractice-shield' as any);
+                }}
+                disabled={isLoading || isClassifying}
+              >
+                <Text style={styles.menuItemIcon}>🛡️</Text>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={styles.menuItemText}>Malpractice Shield</Text>
+                  <Text style={styles.menuItemSubtext}>Liability analysis & insurance coverage</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
                   router.push('/publication-report' as any);
                 }}
                 disabled={isLoading || isClassifying}
