@@ -61,6 +61,60 @@ export default function PhotoScreen() {
   const [clinicalContext, setClinicalContext] = useState<ClinicalContext | null>(null);
   const [analysisType, setAnalysisType] = useState<'lesion' | 'infectious'>('lesion');
 
+  // Menu category expansion state
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
+    new Set(['Patient Monitoring']) // Default expanded category
+  );
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
+  };
+
+  // Menu category component
+  const MenuCategory = ({
+    title,
+    icon,
+    children,
+    count
+  }: {
+    title: string;
+    icon: string;
+    children: React.ReactNode;
+    count: number;
+  }) => {
+    const isExpanded = expandedCategories.has(title);
+    return (
+      <View style={styles.menuCategory}>
+        <Pressable
+          style={styles.menuCategoryHeader}
+          onPress={() => toggleCategory(title)}
+        >
+          <Text style={styles.menuCategoryIcon}>{icon}</Text>
+          <View style={styles.menuCategoryTitleContainer}>
+            <Text style={styles.menuCategoryTitle}>{title}</Text>
+            <Text style={styles.menuCategoryCount}>{count} items</Text>
+          </View>
+          <Text style={styles.menuCategoryArrow}>
+            {isExpanded ? '▼' : '▶'}
+          </Text>
+        </Pressable>
+        {isExpanded && (
+          <View style={styles.menuCategoryContent}>
+            {children}
+          </View>
+        )}
+      </View>
+    );
+  };
+
   // AI Explanation state
   const [aiExplanation, setAiExplanation] = useState<string | null>(null);
   const [isLoadingAiExplanation, setIsLoadingAiExplanation] = useState<boolean>(false);
@@ -2546,485 +2600,400 @@ export default function PhotoScreen() {
             </View>
 
             <ScrollView style={styles.menuContent}>
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/lesion-tracking');
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>🔍</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>{t('homeScreen.navigation.lesionTracking')}</Text>
-                  <Text style={styles.menuItemSubtext}>{t('history.menu.trackLesions.subtitle')}</Text>
-                </View>
-              </Pressable>
+              {/* 1. Patient Monitoring */}
+              <MenuCategory title="Patient Monitoring" icon="🔍" count={6}>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/lesion-tracking'); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🔍</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>{t('homeScreen.navigation.lesionTracking')}</Text>
+                    <Text style={styles.menuItemSubtext}>{t('history.menu.trackLesions.subtitle')}</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/progression-timeline'); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>📊</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>{t('progressionTimeline.title')}</Text>
+                    <Text style={styles.menuItemSubtext}>{t('progressionTimeline.subtitle')}</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/body-map-3d' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🧍</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>3D Body Map</Text>
+                    <Text style={styles.menuItemSubtext}>Visual body mapping with AR integration</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/sun-exposure' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>☀️</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>{t('homeScreen.navigation.sunExposure')}</Text>
+                    <Text style={styles.menuItemSubtext}>{t('history.menu.sunExposure.subtitle')}</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/wearables' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>⌚</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Wearable Devices</Text>
+                    <Text style={styles.menuItemSubtext}>Track UV exposure from smartwatch</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/history'); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>📋</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>{t('homeScreen.navigation.history')}</Text>
+                    <Text style={styles.menuItemSubtext}>{t('homeScreen.userGuide.features.history')}</Text>
+                  </View>
+                </Pressable>
+              </MenuCategory>
 
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/progression-timeline');
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>📊</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>{t('progressionTimeline.title')}</Text>
-                  <Text style={styles.menuItemSubtext}>{t('progressionTimeline.subtitle')}</Text>
-                </View>
-              </Pressable>
+              {/* 2. Health Profile */}
+              <MenuCategory title="Health Profile" icon="👤" count={4}>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/profile' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>👤</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Profile</Text>
+                    <Text style={styles.menuItemSubtext}>Age, skin type, medical history</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/family-history' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🧬</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>{t('homeScreen.navigation.familyHistory')}</Text>
+                    <Text style={styles.menuItemSubtext}>{t('history.menu.familyHistory.subtitle')}</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/genetic-testing' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🧪</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Genetic Testing</Text>
+                    <Text style={styles.menuItemSubtext}>Upload VCF files & view genetic risk</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/lab-results' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🔬</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Lab Results</Text>
+                    <Text style={styles.menuItemSubtext}>Blood, urine & stool analysis</Text>
+                  </View>
+                </Pressable>
+              </MenuCategory>
 
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/billing-coding');
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>💳</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>{t('billingCoding.title')}</Text>
-                  <Text style={styles.menuItemSubtext}>{t('billingCoding.subtitle')}</Text>
-                </View>
-              </Pressable>
+              {/* 3. Consult & Diagnosis */}
+              <MenuCategory title="Consult & Diagnosis" icon="👨‍⚕️" count={3}>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/advanced-telederm' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>📹</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Advanced Teledermatology</Text>
+                    <Text style={styles.menuItemSubtext}>Video consults, triage & consensus</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/dermatologist-integration' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>👨‍⚕️</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>{t('homeScreen.navigation.dermatologist')}</Text>
+                    <Text style={styles.menuItemSubtext}>{t('history.menu.dermatologist.subtitle')}</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/ai-chat' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🤖</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>AI Assistant</Text>
+                    <Text style={styles.menuItemSubtext}>Ask questions about skin health</Text>
+                  </View>
+                </Pressable>
+              </MenuCategory>
 
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/billing-insurance');
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>🏥</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Insurance & Appeals</Text>
-                  <Text style={styles.menuItemSubtext}>Pre-auth, claims & appeal letters</Text>
-                </View>
-              </Pressable>
+              {/* 4. Staging & Prognosis */}
+              <MenuCategory title="Staging & Prognosis" icon="📊" count={5}>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/biopsy' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🧫</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Biopsy Tracking</Text>
+                    <Text style={styles.menuItemSubtext}>Track biopsies & analyze histopathology slides</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/ajcc-staging' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>📊</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>AJCC Staging</Text>
+                    <Text style={styles.menuItemSubtext}>Interactive TNM melanoma staging calculator</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/breslow-clark' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🔬</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Breslow/Clark Visualizer</Text>
+                    <Text style={styles.menuItemSubtext}>3D visualization of invasion depth</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/survival-estimator' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>📉</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Survival Estimator</Text>
+                    <Text style={styles.menuItemSubtext}>ML-based survival curves from tumor data</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/sentinel-node-mapper' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🔗</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Sentinel Node Mapper</Text>
+                    <Text style={styles.menuItemSubtext}>Lymph node basin mapping & biopsy tracking</Text>
+                  </View>
+                </Pressable>
+              </MenuCategory>
 
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/cost-transparency');
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>💰</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Cost Transparency</Text>
-                  <Text style={styles.menuItemSubtext}>Prices, provider comparison & Rx savings</Text>
-                </View>
-              </Pressable>
+              {/* 5. Treatment */}
+              <MenuCategory title="Treatment" icon="💊" count={2}>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/treatment-monitoring' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>💊</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>{t('homeScreen.navigation.treatment')}</Text>
+                    <Text style={styles.menuItemSubtext}>{t('history.menu.treatmentMonitoring.subtitle')}</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/clinical-trials' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🔬</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Clinical Trials</Text>
+                    <Text style={styles.menuItemSubtext}>Find matching research studies</Text>
+                  </View>
+                </Pressable>
+              </MenuCategory>
 
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/population-health');
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>📈</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>{t('populationHealth.title')}</Text>
-                  <Text style={styles.menuItemSubtext}>{t('populationHealth.subtitle')}</Text>
-                </View>
-              </Pressable>
+              {/* 6. Billing & Documentation */}
+              <MenuCategory title="Billing & Documentation" icon="💳" count={6}>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/billing-coding'); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>💳</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>{t('billingCoding.title')}</Text>
+                    <Text style={styles.menuItemSubtext}>{t('billingCoding.subtitle')}</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/billing-insurance'); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🏥</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Insurance & Appeals</Text>
+                    <Text style={styles.menuItemSubtext}>Pre-auth, claims & appeal letters</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/cost-transparency'); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>💰</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Cost Transparency</Text>
+                    <Text style={styles.menuItemSubtext}>Prices, provider comparison & Rx savings</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/auto-coding' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🏷️</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Auto-Coding Engine</Text>
+                    <Text style={styles.menuItemSubtext}>ICD-10/CPT codes from AI diagnosis</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/publication-report' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>📄</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Publication Report</Text>
+                    <Text style={styles.menuItemSubtext}>Generate publication-ready case reports</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/malpractice-shield' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🛡️</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Malpractice Shield</Text>
+                    <Text style={styles.menuItemSubtext}>Liability analysis & insurance coverage</Text>
+                  </View>
+                </Pressable>
+              </MenuCategory>
 
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/history');
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>📊</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>{t('homeScreen.navigation.history')}</Text>
-                  <Text style={styles.menuItemSubtext}>{t('homeScreen.userGuide.features.history')}</Text>
-                </View>
-              </Pressable>
+              {/* 7. Analytics & AI */}
+              <MenuCategory title="Analytics & AI" icon="📈" count={5}>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/analytics' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>📈</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>{t('homeScreen.navigation.analytics')}</Text>
+                    <Text style={styles.menuItemSubtext}>{t('history.menu.analytics.subtitle')}</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/population-health'); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>📊</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>{t('populationHealth.title')}</Text>
+                    <Text style={styles.menuItemSubtext}>{t('populationHealth.subtitle')}</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/ai-accuracy' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🎯</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>AI Accuracy</Text>
+                    <Text style={styles.menuItemSubtext}>Diagnostic accuracy improving over time</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/enhanced-ml' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🤖</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Enhanced ML</Text>
+                    <Text style={styles.menuItemSubtext}>Segmentation, growth prediction & privacy</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/data-augmentation' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🔄</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Data Augmentation</Text>
+                    <Text style={styles.menuItemSubtext}>Generate synthetic training data</Text>
+                  </View>
+                </Pressable>
+              </MenuCategory>
 
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/family-history' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>🧬</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>{t('homeScreen.navigation.familyHistory')}</Text>
-                  <Text style={styles.menuItemSubtext}>{t('history.menu.familyHistory.subtitle')}</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/wearables' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>⌚</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Wearable Devices</Text>
-                  <Text style={styles.menuItemSubtext}>Track UV exposure from smartwatch</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/genetic-testing' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>🧪</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Genetic Testing</Text>
-                  <Text style={styles.menuItemSubtext}>Upload VCF files & view genetic risk</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/clinical-trials' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>🔬</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Clinical Trials</Text>
-                  <Text style={styles.menuItemSubtext}>Find matching research studies</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/advanced-telederm' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>📹</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Advanced Teledermatology</Text>
-                  <Text style={styles.menuItemSubtext}>Video consults, triage & consensus</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/analytics' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>📈</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>{t('homeScreen.navigation.analytics')}</Text>
-                  <Text style={styles.menuItemSubtext}>{t('history.menu.analytics.subtitle')}</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/sun-exposure' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>☀️</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>{t('homeScreen.navigation.sunExposure')}</Text>
-                  <Text style={styles.menuItemSubtext}>{t('history.menu.sunExposure.subtitle')}</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/treatment-monitoring' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>💊</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>{t('homeScreen.navigation.treatment')}</Text>
-                  <Text style={styles.menuItemSubtext}>{t('history.menu.treatmentMonitoring.subtitle')}</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/dermatologist-integration' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>👨‍⚕️</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>{t('homeScreen.navigation.dermatologist')}</Text>
-                  <Text style={styles.menuItemSubtext}>{t('history.menu.dermatologist.subtitle')}</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/lab-results' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>🔬</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Lab Results</Text>
-                  <Text style={styles.menuItemSubtext}>Blood, urine & stool analysis</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/biopsy' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>🧫</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Biopsy Tracking</Text>
-                  <Text style={styles.menuItemSubtext}>Track biopsies & analyze histopathology slides</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/ajcc-staging' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>📊</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>AJCC Staging</Text>
-                  <Text style={styles.menuItemSubtext}>Interactive TNM melanoma staging calculator</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/breslow-clark' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>🔬</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Breslow/Clark Visualizer</Text>
-                  <Text style={styles.menuItemSubtext}>3D visualization of invasion depth</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/survival-estimator' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>📉</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Survival Estimator</Text>
-                  <Text style={styles.menuItemSubtext}>ML-based survival curves from tumor data</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/sentinel-node-mapper' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>🔗</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Sentinel Node Mapper</Text>
-                  <Text style={styles.menuItemSubtext}>Lymph node basin mapping & biopsy tracking</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/ai-accuracy' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>📈</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>AI Accuracy</Text>
-                  <Text style={styles.menuItemSubtext}>Diagnostic accuracy improving over time</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/malpractice-shield' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>🛡️</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Malpractice Shield</Text>
-                  <Text style={styles.menuItemSubtext}>Liability analysis & insurance coverage</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/publication-report' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>📄</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Publication Report</Text>
-                  <Text style={styles.menuItemSubtext}>Generate publication-ready case reports</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/enhanced-ml' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>🤖</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Enhanced ML</Text>
-                  <Text style={styles.menuItemSubtext}>Segmentation, growth prediction & privacy</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/data-augmentation' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>🔄</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Data Augmentation</Text>
-                  <Text style={styles.menuItemSubtext}>Generate synthetic training data</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/body-map-3d' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>🧍</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>3D Body Map</Text>
-                  <Text style={styles.menuItemSubtext}>Visual body mapping with AR integration</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/help');
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>📚</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>{t('homeScreen.navigation.help')}</Text>
-                  <Text style={styles.menuItemSubtext}>{t('history.menu.help.subtitle')}</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/profile' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>👤</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>Profile</Text>
-                  <Text style={styles.menuItemSubtext}>Age, skin type, medical history</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/ai-chat' as any);
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>🤖</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>AI Assistant</Text>
-                  <Text style={styles.menuItemSubtext}>Ask questions about skin health</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  router.push('/settings');
-                }}
-                disabled={isLoading || isClassifying}
-              >
-                <Text style={styles.menuItemIcon}>⚙️</Text>
-                <View style={styles.menuItemTextContainer}>
-                  <Text style={styles.menuItemText}>{t('homeScreen.navigation.settings')}</Text>
-                  <Text style={styles.menuItemSubtext}>{t('settings.language')} and preferences</Text>
-                </View>
-              </Pressable>
+              {/* 8. Account */}
+              <MenuCategory title="Account" icon="⚙️" count={2}>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/help'); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>📚</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>{t('homeScreen.navigation.help')}</Text>
+                    <Text style={styles.menuItemSubtext}>{t('history.menu.help.subtitle')}</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/settings'); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>⚙️</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>{t('homeScreen.navigation.settings')}</Text>
+                    <Text style={styles.menuItemSubtext}>{t('settings.language')} and preferences</Text>
+                  </View>
+                </Pressable>
+              </MenuCategory>
 
               <View style={styles.menuDivider} />
 
@@ -4431,6 +4400,63 @@ const styles = StyleSheet.create({
     backgroundColor: '#e5e7eb',
     marginVertical: 10,
     marginHorizontal: 10,
+  },
+  // Collapsible menu category styles
+  menuCategory: {
+    marginBottom: 8,
+    marginHorizontal: 10,
+  },
+  menuCategoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  menuCategoryIcon: {
+    fontSize: 22,
+    marginRight: 12,
+  },
+  menuCategoryTitleContainer: {
+    flex: 1,
+  },
+  menuCategoryTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0369a1',
+  },
+  menuCategoryCount: {
+    fontSize: 12,
+    color: '#0891b2',
+    marginTop: 2,
+  },
+  menuCategoryArrow: {
+    fontSize: 12,
+    color: '#0369a1',
+    marginLeft: 8,
+  },
+  menuCategoryContent: {
+    marginTop: 4,
+    marginLeft: 8,
+    borderLeftWidth: 2,
+    borderLeftColor: '#e0f2fe',
+    paddingLeft: 8,
+  },
+  menuItemCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginVertical: 2,
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
+  },
+  menuItemIconSmall: {
+    fontSize: 20,
+    marginRight: 12,
   },
   logoutMenuItem: {
     backgroundColor: '#fef2f2',

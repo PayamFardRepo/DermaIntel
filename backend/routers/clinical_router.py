@@ -4588,3 +4588,606 @@ async def get_risk_mitigation_tips(
             "Complex medical-legal situation",
         ],
     }
+
+
+# ============================================================================
+# AUTO-CODING ENGINE - ICD-10/CPT Code Suggestions
+# ============================================================================
+
+# Comprehensive dermatology ICD-10 code database
+DERMATOLOGY_ICD10_CODES = {
+    # Malignant neoplasms of skin
+    "melanoma": [
+        {"code": "C43.9", "description": "Malignant melanoma of skin, unspecified", "category": "Melanoma"},
+        {"code": "C43.0", "description": "Malignant melanoma of lip", "category": "Melanoma"},
+        {"code": "C43.1", "description": "Malignant melanoma of eyelid", "category": "Melanoma"},
+        {"code": "C43.2", "description": "Malignant melanoma of ear and external auricular canal", "category": "Melanoma"},
+        {"code": "C43.3", "description": "Malignant melanoma of other parts of face", "category": "Melanoma"},
+        {"code": "C43.4", "description": "Malignant melanoma of scalp and neck", "category": "Melanoma"},
+        {"code": "C43.5", "description": "Malignant melanoma of trunk", "category": "Melanoma"},
+        {"code": "C43.6", "description": "Malignant melanoma of upper limb", "category": "Melanoma"},
+        {"code": "C43.7", "description": "Malignant melanoma of lower limb", "category": "Melanoma"},
+    ],
+    "basal_cell_carcinoma": [
+        {"code": "C44.91", "description": "Basal cell carcinoma of skin, unspecified", "category": "BCC"},
+        {"code": "C44.01", "description": "Basal cell carcinoma of skin of lip", "category": "BCC"},
+        {"code": "C44.111", "description": "Basal cell carcinoma of skin of right eyelid", "category": "BCC"},
+        {"code": "C44.112", "description": "Basal cell carcinoma of skin of left eyelid", "category": "BCC"},
+        {"code": "C44.211", "description": "Basal cell carcinoma of skin of right ear", "category": "BCC"},
+        {"code": "C44.212", "description": "Basal cell carcinoma of skin of left ear", "category": "BCC"},
+        {"code": "C44.310", "description": "Basal cell carcinoma of skin of nose", "category": "BCC"},
+        {"code": "C44.319", "description": "Basal cell carcinoma of other parts of face", "category": "BCC"},
+        {"code": "C44.41", "description": "Basal cell carcinoma of skin of scalp and neck", "category": "BCC"},
+        {"code": "C44.510", "description": "Basal cell carcinoma of skin of trunk", "category": "BCC"},
+        {"code": "C44.611", "description": "Basal cell carcinoma of skin of right upper limb", "category": "BCC"},
+        {"code": "C44.612", "description": "Basal cell carcinoma of skin of left upper limb", "category": "BCC"},
+        {"code": "C44.711", "description": "Basal cell carcinoma of skin of right lower limb", "category": "BCC"},
+        {"code": "C44.712", "description": "Basal cell carcinoma of skin of left lower limb", "category": "BCC"},
+    ],
+    "squamous_cell_carcinoma": [
+        {"code": "C44.92", "description": "Squamous cell carcinoma of skin, unspecified", "category": "SCC"},
+        {"code": "C44.02", "description": "Squamous cell carcinoma of skin of lip", "category": "SCC"},
+        {"code": "C44.121", "description": "Squamous cell carcinoma of skin of right eyelid", "category": "SCC"},
+        {"code": "C44.122", "description": "Squamous cell carcinoma of skin of left eyelid", "category": "SCC"},
+        {"code": "C44.221", "description": "Squamous cell carcinoma of skin of right ear", "category": "SCC"},
+        {"code": "C44.222", "description": "Squamous cell carcinoma of skin of left ear", "category": "SCC"},
+        {"code": "C44.320", "description": "Squamous cell carcinoma of skin of nose", "category": "SCC"},
+        {"code": "C44.329", "description": "Squamous cell carcinoma of other parts of face", "category": "SCC"},
+        {"code": "C44.42", "description": "Squamous cell carcinoma of skin of scalp and neck", "category": "SCC"},
+        {"code": "C44.520", "description": "Squamous cell carcinoma of skin of trunk", "category": "SCC"},
+        {"code": "C44.621", "description": "Squamous cell carcinoma of skin of right upper limb", "category": "SCC"},
+        {"code": "C44.622", "description": "Squamous cell carcinoma of skin of left upper limb", "category": "SCC"},
+        {"code": "C44.721", "description": "Squamous cell carcinoma of skin of right lower limb", "category": "SCC"},
+        {"code": "C44.722", "description": "Squamous cell carcinoma of skin of left lower limb", "category": "SCC"},
+    ],
+    # Benign neoplasms
+    "nevus": [
+        {"code": "D22.9", "description": "Melanocytic nevi, unspecified", "category": "Benign"},
+        {"code": "D22.0", "description": "Melanocytic nevi of lip", "category": "Benign"},
+        {"code": "D22.1", "description": "Melanocytic nevi of eyelid", "category": "Benign"},
+        {"code": "D22.2", "description": "Melanocytic nevi of ear", "category": "Benign"},
+        {"code": "D22.3", "description": "Melanocytic nevi of other parts of face", "category": "Benign"},
+        {"code": "D22.4", "description": "Melanocytic nevi of scalp and neck", "category": "Benign"},
+        {"code": "D22.5", "description": "Melanocytic nevi of trunk", "category": "Benign"},
+        {"code": "D22.6", "description": "Melanocytic nevi of upper limb", "category": "Benign"},
+        {"code": "D22.7", "description": "Melanocytic nevi of lower limb", "category": "Benign"},
+    ],
+    "seborrheic_keratosis": [
+        {"code": "L82.1", "description": "Other seborrheic keratosis", "category": "Benign"},
+        {"code": "L82.0", "description": "Inflamed seborrheic keratosis", "category": "Benign"},
+    ],
+    "dermatofibroma": [
+        {"code": "D23.9", "description": "Other benign neoplasm of skin, unspecified", "category": "Benign"},
+    ],
+    # Actinic/precancerous
+    "actinic_keratosis": [
+        {"code": "L57.0", "description": "Actinic keratosis", "category": "Precancerous"},
+    ],
+    # Inflammatory conditions
+    "eczema": [
+        {"code": "L30.9", "description": "Dermatitis, unspecified", "category": "Inflammatory"},
+        {"code": "L20.9", "description": "Atopic dermatitis, unspecified", "category": "Inflammatory"},
+        {"code": "L20.81", "description": "Atopic neurodermatitis", "category": "Inflammatory"},
+        {"code": "L20.82", "description": "Flexural eczema", "category": "Inflammatory"},
+        {"code": "L20.84", "description": "Intrinsic (allergic) eczema", "category": "Inflammatory"},
+    ],
+    "psoriasis": [
+        {"code": "L40.9", "description": "Psoriasis, unspecified", "category": "Inflammatory"},
+        {"code": "L40.0", "description": "Psoriasis vulgaris", "category": "Inflammatory"},
+        {"code": "L40.1", "description": "Generalized pustular psoriasis", "category": "Inflammatory"},
+        {"code": "L40.4", "description": "Guttate psoriasis", "category": "Inflammatory"},
+        {"code": "L40.50", "description": "Arthropathic psoriasis, unspecified", "category": "Inflammatory"},
+    ],
+    "rosacea": [
+        {"code": "L71.9", "description": "Rosacea, unspecified", "category": "Inflammatory"},
+        {"code": "L71.0", "description": "Perioral dermatitis", "category": "Inflammatory"},
+        {"code": "L71.1", "description": "Rhinophyma", "category": "Inflammatory"},
+        {"code": "L71.8", "description": "Other rosacea", "category": "Inflammatory"},
+    ],
+    "acne": [
+        {"code": "L70.0", "description": "Acne vulgaris", "category": "Inflammatory"},
+        {"code": "L70.1", "description": "Acne conglobata", "category": "Inflammatory"},
+        {"code": "L70.4", "description": "Infantile acne", "category": "Inflammatory"},
+        {"code": "L70.8", "description": "Other acne", "category": "Inflammatory"},
+        {"code": "L70.9", "description": "Acne, unspecified", "category": "Inflammatory"},
+    ],
+    "urticaria": [
+        {"code": "L50.9", "description": "Urticaria, unspecified", "category": "Inflammatory"},
+        {"code": "L50.0", "description": "Allergic urticaria", "category": "Inflammatory"},
+        {"code": "L50.1", "description": "Idiopathic urticaria", "category": "Inflammatory"},
+        {"code": "L50.2", "description": "Urticaria due to cold and heat", "category": "Inflammatory"},
+        {"code": "L50.3", "description": "Dermatographic urticaria", "category": "Inflammatory"},
+        {"code": "L50.8", "description": "Other urticaria", "category": "Inflammatory"},
+    ],
+    # Infections
+    "cellulitis": [
+        {"code": "L03.90", "description": "Cellulitis, unspecified", "category": "Infection"},
+        {"code": "L03.011", "description": "Cellulitis of right finger", "category": "Infection"},
+        {"code": "L03.012", "description": "Cellulitis of left finger", "category": "Infection"},
+        {"code": "L03.111", "description": "Cellulitis of right axilla", "category": "Infection"},
+        {"code": "L03.112", "description": "Cellulitis of left axilla", "category": "Infection"},
+        {"code": "L03.113", "description": "Cellulitis of right upper limb", "category": "Infection"},
+        {"code": "L03.114", "description": "Cellulitis of left upper limb", "category": "Infection"},
+        {"code": "L03.115", "description": "Cellulitis of right lower limb", "category": "Infection"},
+        {"code": "L03.116", "description": "Cellulitis of left lower limb", "category": "Infection"},
+        {"code": "L03.211", "description": "Cellulitis of face", "category": "Infection"},
+    ],
+    "herpes": [
+        {"code": "B00.9", "description": "Herpesviral infection, unspecified", "category": "Infection"},
+        {"code": "B00.1", "description": "Herpesviral vesicular dermatitis", "category": "Infection"},
+        {"code": "B02.9", "description": "Zoster without complications", "category": "Infection"},
+        {"code": "B02.0", "description": "Zoster encephalitis", "category": "Infection"},
+    ],
+    "tinea": [
+        {"code": "B35.9", "description": "Dermatophytosis, unspecified", "category": "Infection"},
+        {"code": "B35.0", "description": "Tinea barbae and tinea capitis", "category": "Infection"},
+        {"code": "B35.1", "description": "Tinea unguium", "category": "Infection"},
+        {"code": "B35.2", "description": "Tinea manuum", "category": "Infection"},
+        {"code": "B35.3", "description": "Tinea pedis", "category": "Infection"},
+        {"code": "B35.4", "description": "Tinea corporis", "category": "Infection"},
+        {"code": "B35.5", "description": "Tinea imbricata", "category": "Infection"},
+        {"code": "B35.6", "description": "Tinea cruris", "category": "Infection"},
+    ],
+    "warts": [
+        {"code": "B07.9", "description": "Viral wart, unspecified", "category": "Infection"},
+        {"code": "B07.0", "description": "Plantar wart", "category": "Infection"},
+        {"code": "B07.8", "description": "Other viral warts", "category": "Infection"},
+    ],
+    # Burns
+    "burn": [
+        {"code": "T30.0", "description": "Burn of unspecified body region, unspecified degree", "category": "Burn"},
+        {"code": "T20.00XA", "description": "Burn unspecified degree of head, face, neck, initial", "category": "Burn"},
+        {"code": "T21.00XA", "description": "Burn unspecified degree of trunk, initial", "category": "Burn"},
+        {"code": "T22.00XA", "description": "Burn unspecified degree of shoulder and upper limb, initial", "category": "Burn"},
+        {"code": "T23.009A", "description": "Burn unspecified degree of hand, initial", "category": "Burn"},
+        {"code": "T24.009A", "description": "Burn unspecified degree of lower limb, initial", "category": "Burn"},
+    ],
+    # Other common conditions
+    "alopecia": [
+        {"code": "L63.9", "description": "Alopecia areata, unspecified", "category": "Hair"},
+        {"code": "L63.0", "description": "Alopecia (capitis) totalis", "category": "Hair"},
+        {"code": "L64.9", "description": "Androgenic alopecia, unspecified", "category": "Hair"},
+        {"code": "L65.9", "description": "Nonscarring hair loss, unspecified", "category": "Hair"},
+    ],
+    "vitiligo": [
+        {"code": "L80", "description": "Vitiligo", "category": "Pigmentation"},
+    ],
+    "hyperpigmentation": [
+        {"code": "L81.0", "description": "Postinflammatory hyperpigmentation", "category": "Pigmentation"},
+        {"code": "L81.1", "description": "Chloasma", "category": "Pigmentation"},
+        {"code": "L81.4", "description": "Other melanin hyperpigmentation", "category": "Pigmentation"},
+    ],
+}
+
+# Dermatology CPT codes
+DERMATOLOGY_CPT_CODES = {
+    "office_visit": [
+        {"code": "99201", "description": "Office visit, new patient, straightforward", "category": "E/M", "rvu": 0.93},
+        {"code": "99202", "description": "Office visit, new patient, low complexity", "category": "E/M", "rvu": 1.60},
+        {"code": "99203", "description": "Office visit, new patient, moderate complexity", "category": "E/M", "rvu": 2.60},
+        {"code": "99204", "description": "Office visit, new patient, moderate/high complexity", "category": "E/M", "rvu": 3.64},
+        {"code": "99205", "description": "Office visit, new patient, high complexity", "category": "E/M", "rvu": 4.56},
+        {"code": "99211", "description": "Office visit, established patient, minimal", "category": "E/M", "rvu": 0.18},
+        {"code": "99212", "description": "Office visit, established patient, straightforward", "category": "E/M", "rvu": 0.93},
+        {"code": "99213", "description": "Office visit, established patient, low complexity", "category": "E/M", "rvu": 1.30},
+        {"code": "99214", "description": "Office visit, established patient, moderate complexity", "category": "E/M", "rvu": 1.92},
+        {"code": "99215", "description": "Office visit, established patient, high complexity", "category": "E/M", "rvu": 2.80},
+    ],
+    "biopsy": [
+        {"code": "11102", "description": "Tangential biopsy of skin, single lesion", "category": "Procedure", "rvu": 0.99},
+        {"code": "11103", "description": "Tangential biopsy of skin, each additional lesion", "category": "Procedure", "rvu": 0.50},
+        {"code": "11104", "description": "Punch biopsy of skin, single lesion", "category": "Procedure", "rvu": 1.17},
+        {"code": "11105", "description": "Punch biopsy of skin, each additional lesion", "category": "Procedure", "rvu": 0.63},
+        {"code": "11106", "description": "Incisional biopsy of skin, single lesion", "category": "Procedure", "rvu": 1.84},
+        {"code": "11107", "description": "Incisional biopsy of skin, each additional lesion", "category": "Procedure", "rvu": 1.09},
+    ],
+    "excision_benign": [
+        {"code": "11400", "description": "Excision benign lesion, trunk/arms/legs, ≤0.5 cm", "category": "Procedure", "rvu": 1.75},
+        {"code": "11401", "description": "Excision benign lesion, trunk/arms/legs, 0.6-1.0 cm", "category": "Procedure", "rvu": 2.28},
+        {"code": "11402", "description": "Excision benign lesion, trunk/arms/legs, 1.1-2.0 cm", "category": "Procedure", "rvu": 2.67},
+        {"code": "11403", "description": "Excision benign lesion, trunk/arms/legs, 2.1-3.0 cm", "category": "Procedure", "rvu": 3.37},
+        {"code": "11404", "description": "Excision benign lesion, trunk/arms/legs, 3.1-4.0 cm", "category": "Procedure", "rvu": 4.39},
+        {"code": "11406", "description": "Excision benign lesion, trunk/arms/legs, >4.0 cm", "category": "Procedure", "rvu": 5.48},
+        {"code": "11420", "description": "Excision benign lesion, scalp/neck/hands/feet, ≤0.5 cm", "category": "Procedure", "rvu": 2.07},
+        {"code": "11421", "description": "Excision benign lesion, scalp/neck/hands/feet, 0.6-1.0 cm", "category": "Procedure", "rvu": 2.70},
+        {"code": "11422", "description": "Excision benign lesion, scalp/neck/hands/feet, 1.1-2.0 cm", "category": "Procedure", "rvu": 3.24},
+        {"code": "11423", "description": "Excision benign lesion, scalp/neck/hands/feet, 2.1-3.0 cm", "category": "Procedure", "rvu": 3.89},
+        {"code": "11424", "description": "Excision benign lesion, scalp/neck/hands/feet, 3.1-4.0 cm", "category": "Procedure", "rvu": 4.99},
+        {"code": "11426", "description": "Excision benign lesion, scalp/neck/hands/feet, >4.0 cm", "category": "Procedure", "rvu": 6.39},
+        {"code": "11440", "description": "Excision benign lesion, face/ears/eyelids/nose/lips, ≤0.5 cm", "category": "Procedure", "rvu": 2.44},
+        {"code": "11441", "description": "Excision benign lesion, face/ears/eyelids/nose/lips, 0.6-1.0 cm", "category": "Procedure", "rvu": 3.36},
+        {"code": "11442", "description": "Excision benign lesion, face/ears/eyelids/nose/lips, 1.1-2.0 cm", "category": "Procedure", "rvu": 4.08},
+        {"code": "11443", "description": "Excision benign lesion, face/ears/eyelids/nose/lips, 2.1-3.0 cm", "category": "Procedure", "rvu": 5.22},
+        {"code": "11444", "description": "Excision benign lesion, face/ears/eyelids/nose/lips, 3.1-4.0 cm", "category": "Procedure", "rvu": 6.20},
+        {"code": "11446", "description": "Excision benign lesion, face/ears/eyelids/nose/lips, >4.0 cm", "category": "Procedure", "rvu": 7.75},
+    ],
+    "excision_malignant": [
+        {"code": "11600", "description": "Excision malignant lesion, trunk/arms/legs, ≤0.5 cm", "category": "Procedure", "rvu": 2.32},
+        {"code": "11601", "description": "Excision malignant lesion, trunk/arms/legs, 0.6-1.0 cm", "category": "Procedure", "rvu": 2.82},
+        {"code": "11602", "description": "Excision malignant lesion, trunk/arms/legs, 1.1-2.0 cm", "category": "Procedure", "rvu": 3.36},
+        {"code": "11603", "description": "Excision malignant lesion, trunk/arms/legs, 2.1-3.0 cm", "category": "Procedure", "rvu": 4.27},
+        {"code": "11604", "description": "Excision malignant lesion, trunk/arms/legs, 3.1-4.0 cm", "category": "Procedure", "rvu": 5.31},
+        {"code": "11606", "description": "Excision malignant lesion, trunk/arms/legs, >4.0 cm", "category": "Procedure", "rvu": 6.67},
+        {"code": "11620", "description": "Excision malignant lesion, scalp/neck/hands/feet, ≤0.5 cm", "category": "Procedure", "rvu": 2.64},
+        {"code": "11621", "description": "Excision malignant lesion, scalp/neck/hands/feet, 0.6-1.0 cm", "category": "Procedure", "rvu": 3.25},
+        {"code": "11622", "description": "Excision malignant lesion, scalp/neck/hands/feet, 1.1-2.0 cm", "category": "Procedure", "rvu": 3.85},
+        {"code": "11623", "description": "Excision malignant lesion, scalp/neck/hands/feet, 2.1-3.0 cm", "category": "Procedure", "rvu": 4.65},
+        {"code": "11624", "description": "Excision malignant lesion, scalp/neck/hands/feet, 3.1-4.0 cm", "category": "Procedure", "rvu": 6.02},
+        {"code": "11626", "description": "Excision malignant lesion, scalp/neck/hands/feet, >4.0 cm", "category": "Procedure", "rvu": 7.66},
+        {"code": "11640", "description": "Excision malignant lesion, face/ears/eyelids/nose/lips, ≤0.5 cm", "category": "Procedure", "rvu": 3.06},
+        {"code": "11641", "description": "Excision malignant lesion, face/ears/eyelids/nose/lips, 0.6-1.0 cm", "category": "Procedure", "rvu": 4.06},
+        {"code": "11642", "description": "Excision malignant lesion, face/ears/eyelids/nose/lips, 1.1-2.0 cm", "category": "Procedure", "rvu": 4.93},
+        {"code": "11643", "description": "Excision malignant lesion, face/ears/eyelids/nose/lips, 2.1-3.0 cm", "category": "Procedure", "rvu": 6.01},
+        {"code": "11644", "description": "Excision malignant lesion, face/ears/eyelids/nose/lips, 3.1-4.0 cm", "category": "Procedure", "rvu": 7.24},
+        {"code": "11646", "description": "Excision malignant lesion, face/ears/eyelids/nose/lips, >4.0 cm", "category": "Procedure", "rvu": 9.32},
+    ],
+    "destruction": [
+        {"code": "17000", "description": "Destruction premalignant lesion, first lesion", "category": "Procedure", "rvu": 0.90},
+        {"code": "17003", "description": "Destruction premalignant lesions, 2-14 lesions", "category": "Procedure", "rvu": 0.15},
+        {"code": "17004", "description": "Destruction premalignant lesions, 15+ lesions", "category": "Procedure", "rvu": 4.60},
+        {"code": "17110", "description": "Destruction benign lesions, up to 14", "category": "Procedure", "rvu": 1.06},
+        {"code": "17111", "description": "Destruction benign lesions, 15+", "category": "Procedure", "rvu": 1.60},
+    ],
+    "dermoscopy": [
+        {"code": "96931", "description": "Reflectance confocal microscopy for cellular imaging", "category": "Diagnostic", "rvu": 1.50},
+        {"code": "96932", "description": "Reflectance confocal microscopy, additional lesion", "category": "Diagnostic", "rvu": 0.75},
+    ],
+    "phototherapy": [
+        {"code": "96910", "description": "Photochemotherapy; tar and ultraviolet B (Goeckerman)", "category": "Treatment", "rvu": 0.52},
+        {"code": "96912", "description": "Photochemotherapy; psoralens and ultraviolet A (PUVA)", "category": "Treatment", "rvu": 0.52},
+        {"code": "96920", "description": "Laser treatment for inflammatory skin disease", "category": "Treatment", "rvu": 1.10},
+    ],
+    "pathology": [
+        {"code": "88305", "description": "Surgical pathology, gross and microscopic exam", "category": "Pathology", "rvu": 1.59},
+        {"code": "88307", "description": "Surgical pathology, complex specimen", "category": "Pathology", "rvu": 2.47},
+        {"code": "88331", "description": "Pathology consult during surgery, frozen section", "category": "Pathology", "rvu": 1.21},
+    ],
+    "sentinel_node": [
+        {"code": "38500", "description": "Biopsy superficial lymph node", "category": "Procedure", "rvu": 3.28},
+        {"code": "38505", "description": "Biopsy deep lymph node", "category": "Procedure", "rvu": 5.27},
+        {"code": "38525", "description": "Biopsy deep cervical node", "category": "Procedure", "rvu": 5.92},
+        {"code": "38792", "description": "Injection for identification of sentinel lymph node", "category": "Procedure", "rvu": 1.27},
+    ],
+}
+
+# Mapping from common diagnosis terms to ICD-10 keys
+DIAGNOSIS_MAPPING = {
+    "melanoma": "melanoma",
+    "malignant melanoma": "melanoma",
+    "mm": "melanoma",
+    "basal cell": "basal_cell_carcinoma",
+    "basal cell carcinoma": "basal_cell_carcinoma",
+    "bcc": "basal_cell_carcinoma",
+    "squamous cell": "squamous_cell_carcinoma",
+    "squamous cell carcinoma": "squamous_cell_carcinoma",
+    "scc": "squamous_cell_carcinoma",
+    "nevus": "nevus",
+    "mole": "nevus",
+    "nevi": "nevus",
+    "melanocytic nevus": "nevus",
+    "seborrheic keratosis": "seborrheic_keratosis",
+    "sk": "seborrheic_keratosis",
+    "seb k": "seborrheic_keratosis",
+    "dermatofibroma": "dermatofibroma",
+    "actinic keratosis": "actinic_keratosis",
+    "ak": "actinic_keratosis",
+    "solar keratosis": "actinic_keratosis",
+    "eczema": "eczema",
+    "atopic dermatitis": "eczema",
+    "dermatitis": "eczema",
+    "psoriasis": "psoriasis",
+    "rosacea": "rosacea",
+    "acne": "acne",
+    "acne vulgaris": "acne",
+    "urticaria": "urticaria",
+    "hives": "urticaria",
+    "cellulitis": "cellulitis",
+    "herpes": "herpes",
+    "herpes simplex": "herpes",
+    "shingles": "herpes",
+    "herpes zoster": "herpes",
+    "tinea": "tinea",
+    "fungal": "tinea",
+    "ringworm": "tinea",
+    "athlete's foot": "tinea",
+    "wart": "warts",
+    "verruca": "warts",
+    "viral wart": "warts",
+    "burn": "burn",
+    "thermal injury": "burn",
+    "alopecia": "alopecia",
+    "hair loss": "alopecia",
+    "vitiligo": "vitiligo",
+    "hyperpigmentation": "hyperpigmentation",
+    "melasma": "hyperpigmentation",
+}
+
+
+@router.post("/auto-coding/suggest")
+async def suggest_codes(
+    diagnosis: str = Form(...),
+    clinical_notes: str = Form(None),
+    body_location: str = Form(None),
+    lesion_size_cm: float = Form(None),
+    is_new_patient: bool = Form(False),
+    procedure_performed: str = Form(None),
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    AI-powered ICD-10 and CPT code suggestions based on diagnosis and clinical notes.
+
+    Returns suggested codes with confidence levels and documentation tips.
+    """
+    diagnosis_lower = diagnosis.lower().strip()
+
+    # Find matching ICD-10 codes
+    icd10_suggestions = []
+    matched_key = None
+
+    # Direct mapping lookup
+    for term, key in DIAGNOSIS_MAPPING.items():
+        if term in diagnosis_lower or diagnosis_lower in term:
+            matched_key = key
+            break
+
+    # If no direct match, try fuzzy matching on all terms
+    if not matched_key:
+        for term, key in DIAGNOSIS_MAPPING.items():
+            if any(word in diagnosis_lower for word in term.split()):
+                matched_key = key
+                break
+
+    if matched_key and matched_key in DERMATOLOGY_ICD10_CODES:
+        codes = DERMATOLOGY_ICD10_CODES[matched_key]
+
+        # Filter by body location if provided
+        if body_location:
+            location_lower = body_location.lower()
+            location_keywords = {
+                "face": ["face", "facial"],
+                "scalp": ["scalp", "head"],
+                "neck": ["neck", "cervical"],
+                "trunk": ["trunk", "chest", "back", "abdomen"],
+                "arm": ["arm", "upper limb", "shoulder"],
+                "hand": ["hand", "finger"],
+                "leg": ["leg", "lower limb", "thigh"],
+                "foot": ["foot", "toe"],
+                "ear": ["ear", "auricular"],
+                "nose": ["nose", "nasal"],
+                "eyelid": ["eyelid", "periorbital"],
+            }
+
+            matching_codes = []
+            for code in codes:
+                desc_lower = code["description"].lower()
+                # Check if description matches location
+                for loc, keywords in location_keywords.items():
+                    if loc in location_lower:
+                        if any(kw in desc_lower for kw in keywords):
+                            matching_codes.append({**code, "confidence": "High", "location_match": True})
+                            break
+                else:
+                    # Include unspecified codes with lower confidence
+                    if "unspecified" in desc_lower:
+                        matching_codes.append({**code, "confidence": "Medium", "location_match": False})
+
+            icd10_suggestions = matching_codes if matching_codes else [
+                {**code, "confidence": "Medium", "location_match": False} for code in codes[:5]
+            ]
+        else:
+            # No location, return top codes with preference for unspecified
+            sorted_codes = sorted(codes, key=lambda x: "unspecified" not in x["description"].lower())
+            icd10_suggestions = [{**code, "confidence": "Medium"} for code in sorted_codes[:5]]
+    else:
+        # No match found, provide generic skin codes
+        icd10_suggestions = [
+            {"code": "L98.9", "description": "Disorder of skin and subcutaneous tissue, unspecified", "category": "Other", "confidence": "Low"},
+            {"code": "R21", "description": "Rash and other nonspecific skin eruption", "category": "Symptoms", "confidence": "Low"},
+        ]
+
+    # Suggest CPT codes based on procedure
+    cpt_suggestions = []
+
+    # Office visit codes
+    visit_codes = DERMATOLOGY_CPT_CODES["office_visit"]
+    if is_new_patient:
+        cpt_suggestions.append({
+            **visit_codes[2],  # 99203
+            "confidence": "High",
+            "recommendation": "Typical new patient dermatology visit"
+        })
+    else:
+        cpt_suggestions.append({
+            **visit_codes[7],  # 99213
+            "confidence": "High",
+            "recommendation": "Typical established patient visit"
+        })
+
+    # Procedure codes based on what was done
+    if procedure_performed:
+        proc_lower = procedure_performed.lower()
+
+        if "biopsy" in proc_lower:
+            if "punch" in proc_lower:
+                cpt_suggestions.append({**DERMATOLOGY_CPT_CODES["biopsy"][2], "confidence": "High"})
+            elif "shave" in proc_lower or "tangential" in proc_lower:
+                cpt_suggestions.append({**DERMATOLOGY_CPT_CODES["biopsy"][0], "confidence": "High"})
+            elif "incisional" in proc_lower:
+                cpt_suggestions.append({**DERMATOLOGY_CPT_CODES["biopsy"][4], "confidence": "High"})
+            else:
+                cpt_suggestions.append({**DERMATOLOGY_CPT_CODES["biopsy"][2], "confidence": "Medium"})
+
+        if "excision" in proc_lower:
+            # Determine if malignant
+            is_malignant = matched_key in ["melanoma", "basal_cell_carcinoma", "squamous_cell_carcinoma"]
+            excision_codes = DERMATOLOGY_CPT_CODES["excision_malignant" if is_malignant else "excision_benign"]
+
+            # Select based on size
+            if lesion_size_cm:
+                if lesion_size_cm <= 0.5:
+                    cpt_suggestions.append({**excision_codes[0], "confidence": "High"})
+                elif lesion_size_cm <= 1.0:
+                    cpt_suggestions.append({**excision_codes[1], "confidence": "High"})
+                elif lesion_size_cm <= 2.0:
+                    cpt_suggestions.append({**excision_codes[2], "confidence": "High"})
+                elif lesion_size_cm <= 3.0:
+                    cpt_suggestions.append({**excision_codes[3], "confidence": "High"})
+                elif lesion_size_cm <= 4.0:
+                    cpt_suggestions.append({**excision_codes[4], "confidence": "High"})
+                else:
+                    cpt_suggestions.append({**excision_codes[5], "confidence": "High"})
+            else:
+                cpt_suggestions.append({**excision_codes[2], "confidence": "Medium", "note": "Size not specified - defaulting to 1.1-2.0 cm"})
+
+        if "destruction" in proc_lower or "cryotherapy" in proc_lower or "liquid nitrogen" in proc_lower:
+            cpt_suggestions.append({**DERMATOLOGY_CPT_CODES["destruction"][0], "confidence": "High"})
+
+        if "sentinel" in proc_lower or "lymph node" in proc_lower:
+            cpt_suggestions.extend([
+                {**DERMATOLOGY_CPT_CODES["sentinel_node"][0], "confidence": "High"},
+                {**DERMATOLOGY_CPT_CODES["sentinel_node"][3], "confidence": "High"},
+            ])
+
+    # Add pathology if biopsy/excision
+    if procedure_performed and any(p in procedure_performed.lower() for p in ["biopsy", "excision"]):
+        cpt_suggestions.append({
+            **DERMATOLOGY_CPT_CODES["pathology"][0],
+            "confidence": "High",
+            "note": "Surgical pathology for specimen"
+        })
+
+    # Documentation tips
+    documentation_tips = []
+
+    if matched_key in ["melanoma", "basal_cell_carcinoma", "squamous_cell_carcinoma"]:
+        documentation_tips.extend([
+            "Document exact anatomic location for site-specific coding",
+            "Record lesion size in centimeters (excised diameter)",
+            "Include margins if excision performed",
+            "Note laterality (right/left) when applicable",
+        ])
+
+    if "excision" in (procedure_performed or "").lower():
+        documentation_tips.extend([
+            "Document excised specimen size, not clinical size",
+            "Include any re-excision for margins if applicable",
+            "Note closure type if complex (may warrant separate code)",
+        ])
+
+    if not body_location:
+        documentation_tips.append("Specify anatomic location for more accurate coding")
+
+    if not lesion_size_cm and "excision" in (procedure_performed or "").lower():
+        documentation_tips.append("Document lesion size in cm for proper excision code selection")
+
+    # Calculate estimated reimbursement
+    total_rvu = sum(code.get("rvu", 0) for code in cpt_suggestions)
+    estimated_reimbursement = round(total_rvu * 33.89, 2)  # 2024 Medicare conversion factor
+
+    return {
+        "diagnosis_input": diagnosis,
+        "matched_condition": matched_key,
+        "icd10_suggestions": icd10_suggestions,
+        "cpt_suggestions": cpt_suggestions,
+        "documentation_tips": documentation_tips,
+        "coding_summary": {
+            "primary_icd10": icd10_suggestions[0]["code"] if icd10_suggestions else None,
+            "primary_cpt": cpt_suggestions[0]["code"] if cpt_suggestions else None,
+            "total_rvu": round(total_rvu, 2),
+            "estimated_medicare_reimbursement": f"${estimated_reimbursement}",
+        },
+        "disclaimer": "These code suggestions are for reference only. Final coding should be verified by a certified medical coder and based on complete documentation.",
+    }
+
+
+@router.get("/auto-coding/icd10-search")
+async def search_icd10(
+    query: str = Query(..., min_length=2),
+    category: str = Query(None),
+    current_user: dict = Depends(get_current_active_user),
+):
+    """Search ICD-10 codes by keyword or code."""
+    query_lower = query.lower()
+    results = []
+
+    for condition_key, codes in DERMATOLOGY_ICD10_CODES.items():
+        for code in codes:
+            if (query_lower in code["code"].lower() or
+                query_lower in code["description"].lower() or
+                query_lower in condition_key.replace("_", " ")):
+                if category is None or code["category"].lower() == category.lower():
+                    results.append({
+                        **code,
+                        "condition_key": condition_key,
+                    })
+
+    # Sort by relevance (exact code match first, then description match)
+    results.sort(key=lambda x: (
+        0 if query_lower == x["code"].lower() else 1,
+        0 if query_lower in x["code"].lower() else 1,
+        0 if x["description"].lower().startswith(query_lower) else 1,
+    ))
+
+    return {
+        "query": query,
+        "count": len(results),
+        "results": results[:20],  # Limit to 20 results
+    }
+
+
+@router.get("/auto-coding/cpt-search")
+async def search_cpt(
+    query: str = Query(..., min_length=2),
+    category: str = Query(None),
+    current_user: dict = Depends(get_current_active_user),
+):
+    """Search CPT codes by keyword or code."""
+    query_lower = query.lower()
+    results = []
+
+    for proc_type, codes in DERMATOLOGY_CPT_CODES.items():
+        for code in codes:
+            if (query_lower in code["code"].lower() or
+                query_lower in code["description"].lower() or
+                query_lower in proc_type.replace("_", " ")):
+                if category is None or code["category"].lower() == category.lower():
+                    results.append({
+                        **code,
+                        "procedure_type": proc_type,
+                    })
+
+    # Sort by relevance
+    results.sort(key=lambda x: (
+        0 if query_lower == x["code"].lower() else 1,
+        0 if query_lower in x["code"].lower() else 1,
+        0 if x["description"].lower().startswith(query_lower) else 1,
+    ))
+
+    return {
+        "query": query,
+        "count": len(results),
+        "results": results[:20],
+    }
+
+
+@router.get("/auto-coding/categories")
+async def get_code_categories(
+    current_user: dict = Depends(get_current_active_user),
+):
+    """Get available code categories for filtering."""
+    icd10_categories = set()
+    cpt_categories = set()
+
+    for codes in DERMATOLOGY_ICD10_CODES.values():
+        for code in codes:
+            icd10_categories.add(code["category"])
+
+    for codes in DERMATOLOGY_CPT_CODES.values():
+        for code in codes:
+            cpt_categories.add(code["category"])
+
+    return {
+        "icd10_categories": sorted(list(icd10_categories)),
+        "cpt_categories": sorted(list(cpt_categories)),
+        "common_diagnoses": list(DIAGNOSIS_MAPPING.keys())[:20],
+    }
