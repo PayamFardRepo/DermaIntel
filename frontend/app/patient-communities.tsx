@@ -47,10 +47,10 @@ const COMMUNITY_CATEGORIES: CommunityCategory[] = [
         description: 'Official MRF patient forum',
       },
       {
-        name: 'Skin Cancer Community',
+        name: 'Melanoma Discussions',
         platform: 'healthunlocked',
-        url: 'https://healthunlocked.com/melanoma-skin',
-        description: 'Melanoma & skin cancer discussions',
+        url: 'https://healthunlocked.com/melanoma',
+        description: 'Melanoma posts across HealthUnlocked communities',
       },
     ],
   },
