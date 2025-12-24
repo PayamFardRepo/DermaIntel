@@ -2719,7 +2719,7 @@ export default function PhotoScreen() {
               </MenuCategory>
 
               {/* 3. Consult & Diagnosis */}
-              <MenuCategory title="Consult & Diagnosis" icon="👨‍⚕️" count={3}>
+              <MenuCategory title="Consult & Diagnosis" icon="👨‍⚕️" count={4}>
                 <Pressable
                   style={styles.menuItemCompact}
                   onPress={() => { setShowMenu(false); router.push('/advanced-telederm' as any); }}
@@ -2751,6 +2751,17 @@ export default function PhotoScreen() {
                   <View style={styles.menuItemTextContainer}>
                     <Text style={styles.menuItemText}>AI Assistant</Text>
                     <Text style={styles.menuItemSubtext}>Ask questions about skin health</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/patient-communities' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>👥</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Patient Communities</Text>
+                    <Text style={styles.menuItemSubtext}>Connect with others on Inspire & HealthUnlocked</Text>
                   </View>
                 </Pressable>
               </MenuCategory>
