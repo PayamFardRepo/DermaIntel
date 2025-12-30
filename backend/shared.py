@@ -420,7 +420,7 @@ else:
     except Exception as e:
         print(f"[ERROR] Failed to load ISIC 8-class model: {e}")
 
-    # ISIC 2020 Binary model
+    # ISIC 2020 Binary model (supports both ResNet50 and ResNet34 architectures)
     print("Loading ISIC 2020 Binary Classification Model...")
     isic_2020_binary_model = None
     try:
@@ -447,15 +447,31 @@ else:
 
         if isic_2020_path and isic_2020_path.exists():
             isic_2020_checkpoint = torch.load(str(isic_2020_path), map_location=device, weights_only=False)
-            model_config = isic_2020_checkpoint.get('model_config', {})
-            num_classes = model_config.get('num_classes', 2)
+            state_dict = isic_2020_checkpoint.get('model_state_dict', isic_2020_checkpoint)
 
-            if num_classes == 2:
+            # Detect architecture from state_dict keys
+            state_keys = list(state_dict.keys())
+            is_resnet34 = any('layer4.2' in k for k in state_keys) and not any('layer4.5' in k for k in state_keys)
+            is_resnet50 = any('backbone' in k for k in state_keys) or any('classifier' in k for k in state_keys)
+
+            if is_resnet50:
+                # Old architecture: ResNet50 with custom classifier
+                print(f"  Detected: ResNet50 architecture")
+                model_config = isic_2020_checkpoint.get('model_config', {})
+                num_classes = model_config.get('num_classes', 2)
                 isic_2020_binary_model = create_isic_classifier(num_classes)
-                isic_2020_binary_model.load_state_dict(isic_2020_checkpoint['model_state_dict'])
-                isic_2020_binary_model = isic_2020_binary_model.to(device)
-                isic_2020_binary_model.eval()
-                print(f"[OK] ISIC 2020 Binary model loaded")
+                isic_2020_binary_model.load_state_dict(state_dict)
+            else:
+                # New architecture: ResNet34 with simple fc (fine-tuned model)
+                print(f"  Detected: ResNet34 fine-tuned architecture (94.3% AUC)")
+                isic_2020_binary_model = models.resnet34(weights=None)
+                num_features = isic_2020_binary_model.fc.in_features
+                isic_2020_binary_model.fc = nn.Linear(num_features, 2)
+                isic_2020_binary_model.load_state_dict(state_dict)
+
+            isic_2020_binary_model = isic_2020_binary_model.to(device)
+            isic_2020_binary_model.eval()
+            print(f"[OK] ISIC 2020 Binary model loaded")
     except Exception as e:
         print(f"[ERROR] Failed to load ISIC 2020 Binary model: {e}")
 
