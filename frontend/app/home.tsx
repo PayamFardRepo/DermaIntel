@@ -1864,7 +1864,7 @@ export default function PhotoScreen() {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -1891,7 +1891,7 @@ export default function PhotoScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -2601,7 +2601,7 @@ export default function PhotoScreen() {
 
             <ScrollView style={styles.menuContent}>
               {/* 1. Patient Monitoring */}
-              <MenuCategory title="Patient Monitoring" icon="🔍" count={6}>
+              <MenuCategory title="Patient Monitoring" icon="🔍" count={8}>
                 <Pressable
                   style={styles.menuItemCompact}
                   onPress={() => { setShowMenu(false); router.push('/lesion-tracking'); }}
@@ -2659,6 +2659,28 @@ export default function PhotoScreen() {
                 </Pressable>
                 <Pressable
                   style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/ar-skin-scanner' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>📷</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>AR Skin Scanner</Text>
+                    <Text style={styles.menuItemSubtext}>Real-time lesion detection with camera</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/environmental-shield' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🛡️</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Environmental Shield</Text>
+                    <Text style={styles.menuItemSubtext}>UV, pollution & weather skin alerts</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
                   onPress={() => { setShowMenu(false); router.push('/history'); }}
                   disabled={isLoading || isClassifying}
                 >
@@ -2671,7 +2693,7 @@ export default function PhotoScreen() {
               </MenuCategory>
 
               {/* 2. Health Profile */}
-              <MenuCategory title="Health Profile" icon="👤" count={4}>
+              <MenuCategory title="Health Profile" icon="👤" count={5}>
                 <Pressable
                   style={styles.menuItemCompact}
                   onPress={() => { setShowMenu(false); router.push('/profile' as any); }}
@@ -2714,6 +2736,17 @@ export default function PhotoScreen() {
                   <View style={styles.menuItemTextContainer}>
                     <Text style={styles.menuItemText}>Lab Results</Text>
                     <Text style={styles.menuItemSubtext}>Blood, urine & stool analysis</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/ingredient-scanner' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🧴</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Ingredient Scanner</Text>
+                    <Text style={styles.menuItemSubtext}>Check product safety for your skin</Text>
                   </View>
                 </Pressable>
               </MenuCategory>
@@ -2826,7 +2859,7 @@ export default function PhotoScreen() {
               </MenuCategory>
 
               {/* 5. Treatment */}
-              <MenuCategory title="Treatment" icon="💊" count={2}>
+              <MenuCategory title="Treatment" icon="💊" count={3}>
                 <Pressable
                   style={styles.menuItemCompact}
                   onPress={() => { setShowMenu(false); router.push('/treatment-monitoring' as any); }}
@@ -2847,6 +2880,17 @@ export default function PhotoScreen() {
                   <View style={styles.menuItemTextContainer}>
                     <Text style={styles.menuItemText}>Clinical Trials</Text>
                     <Text style={styles.menuItemSubtext}>Find matching research studies</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/treatment-preview' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🔮</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Treatment Preview</Text>
+                    <Text style={styles.menuItemSubtext}>See before/after treatment simulation</Text>
                   </View>
                 </Pressable>
               </MenuCategory>
@@ -2922,7 +2966,29 @@ export default function PhotoScreen() {
               </MenuCategory>
 
               {/* 7. Analytics & AI */}
-              <MenuCategory title="Analytics & AI" icon="📈" count={5}>
+              <MenuCategory title="Analytics & AI" icon="📈" count={7}>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/skin-health-score' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>✨</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Skin Health Score</Text>
+                    <Text style={styles.menuItemSubtext}>Your skin age & shareable health report</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/skin-time-machine' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>⏰</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Skin Time Machine</Text>
+                    <Text style={styles.menuItemSubtext}>See your skin in 10, 20, 30 years</Text>
+                  </View>
+                </Pressable>
                 <Pressable
                   style={styles.menuItemCompact}
                   onPress={() => { setShowMenu(false); router.push('/analytics' as any); }}

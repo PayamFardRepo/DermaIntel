@@ -91,6 +91,12 @@ class HealthKitUVReading(BaseModel):
     source: str
 
 
+class WorkoutLocation(BaseModel):
+    latitude: float
+    longitude: float
+    timestamp: str
+
+
 class HealthKitSyncRequest(BaseModel):
     startDate: str
     endDate: str
@@ -98,6 +104,7 @@ class HealthKitSyncRequest(BaseModel):
     estimatedUVExposure: float
     workouts: List[HealthKitWorkout] = []
     uvReadings: List[HealthKitUVReading] = []
+    workoutLocations: List[WorkoutLocation] = []
 
 
 # =============================================================================
@@ -466,6 +473,7 @@ async def perform_device_sync(device_id: int, user_id: int):
 @router.post("/healthkit/sync")
 async def sync_healthkit_data(
     request: HealthKitSyncRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -473,9 +481,17 @@ async def sync_healthkit_data(
     Sync health data from Apple HealthKit.
 
     This endpoint receives workout and UV exposure data directly from
-    the iOS HealthKit integration, bypassing the need for third-party
-    services like Terra.
+    the iOS HealthKit integration. If workout locations are provided,
+    we fetch accurate UV data from OpenUV API.
     """
+    # Import OpenUV service
+    try:
+        from openuv_service import get_openuv_service
+        openuv = get_openuv_service()
+        openuv_available = openuv.is_configured
+    except ImportError:
+        openuv = None
+        openuv_available = False
 
     # Find or create Apple Health device for this user
     device = db.query(WearableDevice).filter(
@@ -510,6 +526,21 @@ async def sync_healthkit_data(
         end_date = datetime.fromisoformat(request.endDate.replace('Z', '+00:00'))
 
         readings_created = 0
+        openuv_readings = 0
+
+        # Get UV data from OpenUV for workout locations if available
+        location_uv_data = {}
+        if openuv_available and request.workoutLocations:
+            try:
+                uv_results = await openuv.get_uv_for_locations([
+                    {"latitude": loc.latitude, "longitude": loc.longitude, "timestamp": loc.timestamp}
+                    for loc in request.workoutLocations
+                ])
+                # Index by timestamp for quick lookup
+                for result in uv_results:
+                    location_uv_data[result["timestamp"]] = result
+            except Exception as e:
+                print(f"OpenUV lookup failed: {e}")
 
         # Process UV readings if any
         for uv_reading in request.uvReadings:
@@ -532,19 +563,51 @@ async def sync_healthkit_data(
             db.add(reading)
             readings_created += 1
 
-        # Process outdoor workouts as estimated UV exposure
+        # Process outdoor workouts with UV data
         for workout in request.workouts:
             if workout.isOutdoor and workout.duration > 0:
                 workout_start = datetime.fromisoformat(workout.startDate.replace('Z', '+00:00'))
 
-                # Estimate UV index based on time of day (rough approximation)
-                hour = workout_start.hour
-                if 10 <= hour <= 16:
-                    estimated_uv = 6.0  # Peak hours
-                elif 8 <= hour <= 18:
-                    estimated_uv = 4.0  # Moderate hours
+                # Check if we have OpenUV data for this workout
+                uv_data = location_uv_data.get(workout.startDate)
+
+                if uv_data and uv_data.get("source") == "openuv":
+                    # Use accurate UV data from OpenUV
+                    uv_index = uv_data.get("uv_index", 5.0)
+                    uv_source = "openuv"
+                    openuv_readings += 1
                 else:
-                    estimated_uv = 1.0  # Low UV hours
+                    # Fallback to time-based estimation
+                    hour = workout_start.hour
+                    month = workout_start.month
+
+                    # Seasonal adjustment
+                    if month in [6, 7, 8]:  # Summer
+                        seasonal_factor = 1.3
+                    elif month in [12, 1, 2]:  # Winter
+                        seasonal_factor = 0.6
+                    else:
+                        seasonal_factor = 1.0
+
+                    # Time of day
+                    if 10 <= hour <= 14:
+                        base_uv = 8.0  # Peak hours
+                    elif 8 <= hour <= 16:
+                        base_uv = 5.0  # Moderate hours
+                    elif 6 <= hour <= 18:
+                        base_uv = 2.0  # Low UV
+                    else:
+                        base_uv = 0.5  # Night
+
+                    uv_index = round(base_uv * seasonal_factor, 1)
+                    uv_source = "estimated"
+
+                # Get latitude/longitude if available
+                latitude = None
+                longitude = None
+                if uv_data:
+                    latitude = uv_data.get("latitude")
+                    longitude = uv_data.get("longitude")
 
                 reading = WearableUVReading(
                     user_id=current_user.id,
@@ -552,12 +615,14 @@ async def sync_healthkit_data(
                     reading_timestamp=workout_start,
                     duration_seconds=int(workout.duration),
                     reading_date=workout_start.date(),
-                    uv_index=estimated_uv,
-                    uv_dose=estimated_uv * (workout.duration / 60),
-                    uv_source="workout_estimate",
+                    uv_index=uv_index,
+                    uv_dose=uv_index * (workout.duration / 3600),  # UV dose = UV * hours
+                    uv_source=uv_source,
                     activity_type=workout.type,
                     is_outdoor=True,
-                    reading_risk_score=calculate_reading_risk(estimated_uv, int(workout.duration))
+                    latitude=latitude,
+                    longitude=longitude,
+                    reading_risk_score=calculate_reading_risk(uv_index, int(workout.duration))
                 )
                 db.add(reading)
                 readings_created += 1
@@ -571,26 +636,33 @@ async def sync_healthkit_data(
 
         db.commit()
 
-        # Update daily summaries
+        # Update daily summaries in background
         if readings_created > 0:
-            # Create UV reading objects for summary calculation
-            uv_readings_for_summary = [
-                UVReadingCreate(
-                    reading_timestamp=datetime.fromisoformat(r.startDate.replace('Z', '+00:00')),
-                    duration_seconds=60,
-                    uv_index=r.value
-                )
-                for r in request.uvReadings
-            ]
-            if uv_readings_for_summary:
-                await update_daily_summaries(db, current_user.id, uv_readings_for_summary)
+            all_readings = []
+            for workout in request.workouts:
+                if workout.isOutdoor and workout.duration > 0:
+                    workout_start = datetime.fromisoformat(workout.startDate.replace('Z', '+00:00'))
+                    uv_data = location_uv_data.get(workout.startDate)
+                    uv_index = uv_data.get("uv_index", 5.0) if uv_data else 5.0
+
+                    all_readings.append(UVReadingCreate(
+                        reading_timestamp=workout_start,
+                        duration_seconds=int(workout.duration),
+                        uv_index=uv_index
+                    ))
+
+            if all_readings:
+                await update_daily_summaries(db, current_user.id, all_readings)
 
         return {
             "success": True,
             "message": f"Synced {readings_created} readings from HealthKit",
             "readings_created": readings_created,
+            "openuv_readings": openuv_readings,
+            "estimated_readings": readings_created - openuv_readings - len(request.uvReadings),
             "outdoor_minutes": request.outdoorMinutes,
             "workouts_processed": len(request.workouts),
+            "openuv_available": openuv_available,
             "sync_period": {
                 "start": request.startDate,
                 "end": request.endDate
@@ -1195,3 +1267,181 @@ async def get_lesion_correlation(
             "analyzed_at": correlation.analyzed_at.isoformat() if correlation.analyzed_at else None
         }
     }
+
+
+# =============================================================================
+# OPENUV ENDPOINTS
+# =============================================================================
+
+@router.get("/uv/current")
+async def get_current_uv(
+    latitude: float = Query(..., ge=-90, le=90),
+    longitude: float = Query(..., ge=-180, le=180),
+    skin_type: int = Query(2, ge=1, le=6, description="Fitzpatrick skin type 1-6"),
+    outdoor_minutes: int = Query(30, ge=0, description="Planned outdoor duration")
+):
+    """
+    Get current UV index and protection advice for a location.
+
+    Uses OpenUV API for accurate real-time UV data. Falls back to
+    time-based estimation if API is not configured.
+    """
+    try:
+        from openuv_service import get_openuv_service
+        openuv = get_openuv_service()
+    except ImportError:
+        openuv = None
+
+    uv_data = None
+    source = "estimated"
+
+    if openuv and openuv.is_configured:
+        try:
+            uv_data = await openuv.get_uv_index(latitude, longitude)
+            if uv_data:
+                source = "openuv"
+        except Exception as e:
+            print(f"OpenUV API error: {e}")
+
+    if uv_data:
+        uv_index = uv_data.uv_index
+        uv_max = uv_data.uv_index_max
+        safe_times = uv_data.safe_exposure_times
+        sun_info = {k: v.isoformat() if v else None for k, v in uv_data.sun_info.items()}
+    else:
+        # Fallback estimation
+        from datetime import datetime
+        now = datetime.now()
+        hour = now.hour
+        month = now.month
+
+        # Seasonal factor
+        if month in [6, 7, 8]:
+            seasonal = 1.3
+        elif month in [12, 1, 2]:
+            seasonal = 0.6
+        else:
+            seasonal = 1.0
+
+        # Time of day
+        if 10 <= hour <= 14:
+            uv_index = round(8.0 * seasonal, 1)
+        elif 8 <= hour <= 16:
+            uv_index = round(5.0 * seasonal, 1)
+        elif 6 <= hour <= 18:
+            uv_index = round(2.0 * seasonal, 1)
+        else:
+            uv_index = 0.5
+
+        uv_max = uv_index * 1.2
+        safe_times = {}
+        sun_info = {}
+
+    # Get protection advice
+    if openuv:
+        advice = openuv.get_protection_advice(uv_index, skin_type, outdoor_minutes)
+        protection = {
+            "required": advice.protection_required,
+            "safe_exposure_minutes": advice.safe_exposure_minutes,
+            "risk_level": advice.risk_level,
+            "recommendations": advice.recommendations
+        }
+    else:
+        # Basic advice
+        if uv_index < 3:
+            risk_level = "low"
+            recommendations = ["Minimal protection needed", "Wear sunglasses on bright days"]
+        elif uv_index < 6:
+            risk_level = "moderate"
+            recommendations = ["Apply SPF 30+ sunscreen", "Wear hat and sunglasses"]
+        elif uv_index < 8:
+            risk_level = "high"
+            recommendations = ["Apply SPF 50+ sunscreen", "Seek shade", "Wear protective clothing"]
+        elif uv_index < 11:
+            risk_level = "very_high"
+            recommendations = ["Minimize sun exposure 10am-4pm", "SPF 50+ required", "Full coverage recommended"]
+        else:
+            risk_level = "extreme"
+            recommendations = ["Avoid sun exposure if possible", "Maximum protection required"]
+
+        protection = {
+            "required": uv_index >= 3,
+            "safe_exposure_minutes": None,
+            "risk_level": risk_level,
+            "recommendations": recommendations
+        }
+
+    return {
+        "location": {"latitude": latitude, "longitude": longitude},
+        "uv_index": uv_index,
+        "uv_max": uv_max,
+        "source": source,
+        "safe_exposure_times": safe_times,
+        "sun_info": sun_info,
+        "protection_advice": protection,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@router.get("/uv/forecast")
+async def get_uv_forecast(
+    latitude: float = Query(..., ge=-90, le=90),
+    longitude: float = Query(..., ge=-180, le=180)
+):
+    """
+    Get UV forecast for the next 48 hours.
+
+    Requires OpenUV API to be configured.
+    """
+    try:
+        from openuv_service import get_openuv_service
+        openuv = get_openuv_service()
+    except ImportError:
+        return {"error": "OpenUV service not available", "forecast": []}
+
+    if not openuv.is_configured:
+        return {
+            "error": "OpenUV API key not configured",
+            "message": "Set OPENUV_API_KEY in your .env file. Get a free key at https://www.openuv.io/",
+            "forecast": []
+        }
+
+    try:
+        forecast = await openuv.get_uv_forecast(latitude, longitude)
+        return {
+            "location": {"latitude": latitude, "longitude": longitude},
+            "forecast": [
+                {"uv_index": f.uv_index, "time": f.uv_time.isoformat()}
+                for f in forecast
+            ],
+            "count": len(forecast)
+        }
+    except Exception as e:
+        return {"error": str(e), "forecast": []}
+
+
+@router.get("/openuv/status")
+async def get_openuv_status():
+    """
+    Check OpenUV API configuration and status.
+    """
+    try:
+        from openuv_service import get_openuv_service
+        openuv = get_openuv_service()
+
+        return {
+            "configured": openuv.is_configured,
+            "api_url": "https://api.openuv.io/api/v1",
+            "free_tier_limit": "50 requests/day",
+            "setup_instructions": {
+                "1": "Sign up at https://www.openuv.io/",
+                "2": "Get your API key from the dashboard",
+                "3": "Add to .env: OPENUV_API_KEY=your_key_here",
+                "4": "Restart the backend server"
+            }
+        }
+    except ImportError:
+        return {
+            "configured": False,
+            "error": "OpenUV service module not found"
+        }

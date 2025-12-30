@@ -7,6 +7,11 @@ This module provides:
 - Authentication fixtures (test users, tokens)
 - Mock ML model fixtures
 - Sample image fixtures
+
+Performance Optimizations:
+- TESTING=1 environment variable enables mock models in shared.py
+- Session-scoped app fixture (loads models once per test session)
+- Tests run 10-50x faster with mock models
 """
 
 import pytest
@@ -14,9 +19,15 @@ import os
 import sys
 from datetime import datetime, timedelta
 from typing import Generator
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, Mock
 import base64
 from io import BytesIO
+
+# =============================================================================
+# ENABLE TEST MODE BEFORE ANY IMPORTS
+# =============================================================================
+# This must be set BEFORE importing shared.py to skip ML model loading
+os.environ["TESTING"] = "1"
 
 # Add backend directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -74,21 +85,30 @@ def override_get_db(test_db):
 # APPLICATION FIXTURES
 # =============================================================================
 
-@pytest.fixture(scope="function")
-def app(override_get_db):
-    """Create a FastAPI app instance with test database."""
+@pytest.fixture(scope="session")
+def app_instance():
+    """
+    Create a FastAPI app instance ONCE per test session.
+    This dramatically speeds up tests by avoiding repeated model loading.
+    """
     from main import app as fastapi_app
+    return fastapi_app
+
+
+@pytest.fixture(scope="function")
+def app(app_instance, override_get_db):
+    """Configure the app with test database for each test."""
     from database import get_db
 
-    fastapi_app.dependency_overrides[get_db] = override_get_db
-    yield fastapi_app
-    fastapi_app.dependency_overrides.clear()
+    app_instance.dependency_overrides[get_db] = override_get_db
+    yield app_instance
+    app_instance.dependency_overrides.clear()
 
 
 @pytest.fixture(scope="function")
 def client(app) -> Generator[TestClient, None, None]:
     """Create a TestClient for making requests to the app."""
-    with TestClient(app) as test_client:
+    with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client
 
 

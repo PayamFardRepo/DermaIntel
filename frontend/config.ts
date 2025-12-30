@@ -102,6 +102,7 @@ export const REQUEST_TIMEOUT = 300000; // 300 seconds (5 minutes)
 // Default export for screens using `import config from '../config'`
 export default {
   API_URL: API_BASE_URL,
+  apiUrl: API_BASE_URL,  // Lowercase alias for compatibility
   API_BASE_URL,
   API_ENDPOINTS,
   REQUEST_TIMEOUT,

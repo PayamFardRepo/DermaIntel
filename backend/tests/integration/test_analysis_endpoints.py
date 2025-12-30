@@ -120,10 +120,6 @@ class TestImageUpload:
 class TestFullClassification:
     """Tests for full classification endpoint."""
 
-    @pytest.mark.skipif(
-        True,  # Skip by default - requires ML models
-        reason="Full classification requires ML models which may not be available in CI"
-    )
     def test_full_classify_valid_image(
         self,
         client,
@@ -151,10 +147,6 @@ class TestFullClassification:
                 "probabilities"
             ])
 
-    @pytest.mark.skipif(
-        True,  # Skip by default - requires ML models
-        reason="Full classification requires ML models which may not be available in CI"
-    )
     def test_full_classify_with_clinical_context(
         self,
         client,
@@ -477,10 +469,6 @@ class TestBodyLocationFiltering:
 class TestMultimodalAnalysis:
     """Tests for multimodal analysis endpoint."""
 
-    @pytest.mark.skipif(
-        True,  # Skip by default - requires ML models
-        reason="Multimodal analysis requires ML models which may not be available in CI"
-    )
     def test_multimodal_analyze(
         self,
         client,

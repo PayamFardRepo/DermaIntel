@@ -378,10 +378,6 @@ class TestClinicalPhotography:
         # Should return standards information
         assert isinstance(data, dict) or isinstance(data, list)
 
-    @pytest.mark.skipif(
-        True,  # Skip due to endpoint internal error with minimal test images
-        reason="Enhanced photo endpoint has internal error with minimal test images"
-    )
     def test_assess_enhanced_photo(
         self,
         client,

@@ -255,6 +255,30 @@ app.include_router(wearable_router)
 # Cost Transparency (price estimates, provider comparison, GoodRx)
 app.include_router(cost_transparency_router)
 
+# Skin Health Score (skin age, health metrics, shareable results)
+from skin_health_score import create_skin_health_router
+app.include_router(create_skin_health_router())
+
+# AR Skin Scanner (real-time lesion detection for AR overlay)
+from ar_skin_scanner import create_ar_scanner_router
+app.include_router(create_ar_scanner_router())
+
+# Treatment Preview (before/after simulation)
+from treatment_preview import create_treatment_preview_router
+app.include_router(create_treatment_preview_router())
+
+# Skin Time Machine (age progression simulation)
+from skin_time_machine import create_time_machine_router
+app.include_router(create_time_machine_router())
+
+# Ingredient Scanner (product ingredient analysis)
+from ingredient_scanner import create_ingredient_scanner_router
+app.include_router(create_ingredient_scanner_router())
+
+# Environmental Shield (location-based skin protection)
+from environmental_shield import create_environmental_shield_router
+app.include_router(create_environmental_shield_router())
+
 # =============================================================================
 # HEALTH CHECK ENDPOINTS
 # =============================================================================

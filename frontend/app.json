@@ -55,6 +55,13 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow SkinLesionDetection to use your location to find nearby doctors and medical specialists."
         }
+      ],
+      "expo-asset",
+      [
+        "react-native-health",
+        {
+          "isClinicalDataEnabled": false
+        }
       ]
     ],
     "extra": {
