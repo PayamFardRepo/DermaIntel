@@ -43,6 +43,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Check directory structure
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Contents:"
+          ls -la
+          echo ""
+          echo "Tests directory:"
+          ls -la tests/ || echo "No tests directory found"
+          echo ""
+          echo "Python path:"
+          python -c "import sys; print('\n'.join(sys.path))"
+
       - name: Verify imports work
         run: |
           python -c "
