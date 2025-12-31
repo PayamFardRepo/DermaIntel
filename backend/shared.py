@@ -562,18 +562,28 @@ else:
                 infectious_model.eval()
                 infectious_labels = infectious_model.config.id2label
                 print(f"[OK] Infectious disease model loaded (HuggingFace format)")
-            elif (infectious_model_dir / "model.pth").exists():
+            elif (infectious_model_dir / "best_model.pth").exists() or (infectious_model_dir / "model.pth").exists():
+                # Determine which model file to use
+                model_file = "best_model.pth" if (infectious_model_dir / "best_model.pth").exists() else "model.pth"
+
                 with open(infectious_model_dir / "metadata.json", 'r') as f:
                     infectious_metadata = json.load(f)
 
                 infectious_labels = {i: name for i, name in enumerate(infectious_metadata['class_names'])}
                 infectious_class_metadata = infectious_metadata.get('class_metadata', {})
 
-                model_arch = infectious_metadata.get('config', {}).get('model_name', 'resnet50')
+                # Get architecture from metadata (new format) or config (old format)
+                model_arch = infectious_metadata.get('architecture',
+                             infectious_metadata.get('config', {}).get('model_name', 'resnet50'))
                 num_classes = len(infectious_labels)
 
                 # Load state dict first to detect actual architecture
-                state_dict = torch.load(str(infectious_model_dir / "model.pth"), map_location=device, weights_only=True)
+                state_dict = torch.load(str(infectious_model_dir / model_file), map_location=device, weights_only=True)
+
+                # Handle checkpoint format (may have 'model_state_dict' key)
+                if 'model_state_dict' in state_dict:
+                    state_dict = state_dict['model_state_dict']
+
                 state_keys = list(state_dict.keys())
 
                 # Detect actual architecture from state dict keys
@@ -581,10 +591,27 @@ else:
                 has_efficientnet_keys = any(k.startswith('features.') for k in state_keys)
                 has_sequential_fc = 'fc.1.weight' in state_keys or 'fc.1.bias' in state_keys
 
+                # Detect ResNet34 vs ResNet18 by checking layer4 depth
+                is_resnet34 = any('layer4.2' in k for k in state_keys) and not any('layer4.5' in k for k in state_keys)
+
                 if has_resnet_keys:
                     # ResNet architecture detected
-                    if has_sequential_fc:
-                        # ResNet with Sequential fc (Dropout + Linear)
+                    if model_arch == 'resnet34' or is_resnet34:
+                        # ResNet34 architecture (improved model with 86.5% AUC)
+                        print(f"  Detected: ResNet34 architecture (improved model)")
+                        infectious_model = models.resnet34(weights=None)
+                        num_features = infectious_model.fc.in_features  # 512 for ResNet34
+                        if has_sequential_fc:
+                            # ResNet34 with Sequential fc (Dropout(0.4) + Linear)
+                            infectious_model.fc = nn.Sequential(
+                                nn.Dropout(p=0.4),
+                                nn.Linear(num_features, num_classes)
+                            )
+                        else:
+                            infectious_model.fc = nn.Linear(num_features, num_classes)
+                    elif has_sequential_fc:
+                        # ResNet18 with Sequential fc (Dropout + Linear)
+                        print(f"  Detected: ResNet18 with Dropout")
                         infectious_model = models.resnet18(weights=None)
                         num_features = infectious_model.fc.in_features
                         infectious_model.fc = nn.Sequential(
@@ -592,7 +619,8 @@ else:
                             nn.Linear(num_features, num_classes)
                         )
                     else:
-                        # ResNet with simple Linear fc
+                        # ResNet18 with simple Linear fc
+                        print(f"  Detected: ResNet18 simple")
                         infectious_model = models.resnet18(weights=None)
                         num_features = infectious_model.fc.in_features
                         infectious_model.fc = nn.Linear(num_features, num_classes)
@@ -622,7 +650,14 @@ else:
                     transforms.ToTensor(),
                     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
                 ])
-                print(f"[OK] Infectious disease model loaded (PyTorch format, {num_classes} classes)")
+
+                # Report metrics if available
+                metrics = infectious_metadata.get('metrics', {})
+                if metrics:
+                    auc = metrics.get('auc', 'N/A')
+                    print(f"[OK] Infectious disease model loaded (PyTorch format, {num_classes} classes, AUC: {auc}%)")
+                else:
+                    print(f"[OK] Infectious disease model loaded (PyTorch format, {num_classes} classes)")
         else:
             print(f"[WARN] Infectious disease model not found (no HF token or local file)")
     except Exception as e:
