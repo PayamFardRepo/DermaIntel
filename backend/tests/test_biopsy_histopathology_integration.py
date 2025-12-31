@@ -472,103 +472,83 @@ class TestDatabasePersistence:
 
         db.close()
 
-    def test_histopathology_data_persistence(self):
+    def test_histopathology_data_persistence(self, test_db, test_user):
         """Test that histopathology data can be saved and retrieved."""
-        from database import get_db, AnalysisHistory
+        from database import AnalysisHistory
 
-        db = next(get_db())
+        # Create test analysis using test_db fixture (tables already created)
+        test_analysis = AnalysisHistory(
+            user_id=test_user.id,
+            image_filename='test_histopathology.png',
+            analysis_type='histopathology',
+            predicted_class='test',
+            lesion_confidence=0.9,
+            histopathology_performed=True,
+            histopathology_result='melanocytic_nevus',
+            histopathology_malignant=False,
+            histopathology_confidence=0.85,
+            histopathology_date=datetime.utcnow(),
+            histopathology_tissue_type='melanocytic_nevus',
+            histopathology_risk_level='low',
+            histopathology_features=json.dumps(['nested_melanocytes', 'regular_architecture']),
+            histopathology_recommendations='Routine follow-up',
+            ai_concordance=True,
+            ai_concordance_type='exact_match',
+            ai_concordance_notes='Strong agreement between AI and pathology'
+        )
 
-        try:
-            # Create test analysis
-            test_analysis = AnalysisHistory(
-                user_id=1,
-                image_filename='test_histopathology.png',
-                analysis_type='histopathology',
-                predicted_class='test',
-                lesion_confidence=0.9,
-                histopathology_performed=True,
-                histopathology_result='melanocytic_nevus',
-                histopathology_malignant=False,
-                histopathology_confidence=0.85,
-                histopathology_date=datetime.utcnow(),
-                histopathology_tissue_type='melanocytic_nevus',
-                histopathology_risk_level='low',
-                histopathology_features=json.dumps(['nested_melanocytes', 'regular_architecture']),
-                histopathology_recommendations='Routine follow-up',
-                ai_concordance=True,
-                ai_concordance_type='exact_match',
-                ai_concordance_notes='Strong agreement between AI and pathology'
-            )
+        test_db.add(test_analysis)
+        test_db.commit()
 
-            db.add(test_analysis)
-            db.commit()
+        # Retrieve and verify
+        retrieved = test_db.query(AnalysisHistory).filter(
+            AnalysisHistory.image_filename == 'test_histopathology.png'
+        ).first()
 
-            # Retrieve and verify
-            retrieved = db.query(AnalysisHistory).filter(
-                AnalysisHistory.image_filename == 'test_histopathology.png'
-            ).first()
+        assert retrieved is not None
+        assert retrieved.histopathology_performed == True
+        assert retrieved.histopathology_result == 'melanocytic_nevus'
+        assert retrieved.histopathology_malignant == False
+        assert retrieved.ai_concordance == True
+        assert retrieved.ai_concordance_type == 'exact_match'
 
-            assert retrieved is not None
-            assert retrieved.histopathology_performed == True
-            assert retrieved.histopathology_result == 'melanocytic_nevus'
-            assert retrieved.histopathology_malignant == False
-            assert retrieved.ai_concordance == True
-            assert retrieved.ai_concordance_type == 'exact_match'
-
-            # Cleanup
-            db.delete(retrieved)
-            db.commit()
-
-        finally:
-            db.close()
-
-    def test_json_fields_serialization(self):
+    def test_json_fields_serialization(self, test_db, test_user):
         """Test JSON field serialization/deserialization."""
-        from database import get_db, AnalysisHistory
+        from database import AnalysisHistory
 
-        db = next(get_db())
+        features = ['feature1', 'feature2', 'feature3']
+        quality = {'focus': 'good', 'staining': 'optimal'}
+        predictions = [{'type': 'nevus', 'confidence': 0.9}]
 
-        try:
-            features = ['feature1', 'feature2', 'feature3']
-            quality = {'focus': 'good', 'staining': 'optimal'}
-            predictions = [{'type': 'nevus', 'confidence': 0.9}]
+        test_analysis = AnalysisHistory(
+            user_id=test_user.id,
+            image_filename='test_json_fields.png',
+            analysis_type='histopathology',
+            predicted_class='test',
+            lesion_confidence=0.9,
+            histopathology_features=json.dumps(features),
+            histopathology_image_quality=json.dumps(quality),
+            histopathology_predictions=json.dumps(predictions)
+        )
 
-            test_analysis = AnalysisHistory(
-                user_id=1,
-                image_filename='test_json_fields.png',
-                analysis_type='histopathology',
-                predicted_class='test',
-                lesion_confidence=0.9,
-                histopathology_features=json.dumps(features),
-                histopathology_image_quality=json.dumps(quality),
-                histopathology_predictions=json.dumps(predictions)
-            )
+        test_db.add(test_analysis)
+        test_db.commit()
 
-            db.add(test_analysis)
-            db.commit()
+        # Retrieve and verify JSON parsing
+        retrieved = test_db.query(AnalysisHistory).filter(
+            AnalysisHistory.image_filename == 'test_json_fields.png'
+        ).first()
 
-            # Retrieve and verify JSON parsing
-            retrieved = db.query(AnalysisHistory).filter(
-                AnalysisHistory.image_filename == 'test_json_fields.png'
-            ).first()
+        assert retrieved is not None
 
-            assert retrieved is not None
+        # Parse JSON fields
+        retrieved_features = json.loads(retrieved.histopathology_features)
+        retrieved_quality = json.loads(retrieved.histopathology_image_quality)
+        retrieved_predictions = json.loads(retrieved.histopathology_predictions)
 
-            # Parse JSON fields
-            retrieved_features = json.loads(retrieved.histopathology_features)
-            retrieved_quality = json.loads(retrieved.histopathology_image_quality)
-            retrieved_predictions = json.loads(retrieved.histopathology_predictions)
-
-            assert retrieved_features == features
-            assert retrieved_quality == quality
-            assert retrieved_predictions == predictions
-
-            # Cleanup
-            db.delete(retrieved)
-            db.commit()
-
-        finally:
-            db.close()
+        assert retrieved_features == features
+        assert retrieved_quality == quality
+        assert retrieved_predictions == predictions
 
 
 # ============================================================================
