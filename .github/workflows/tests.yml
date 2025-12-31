@@ -82,15 +82,17 @@ jobs:
           DATABASE_URL: "sqlite:///:memory:"
           SECRET_KEY: "test-secret-key-for-ci"
 
-      - name: Run tests
+      - name: Run all backend tests
         run: |
-          # Run pytest with verbose output to see what's happening
-          python -m pytest tests/unit/test_auth.py -v --tb=long 2>&1 || echo "Tests completed with errors"
+          # Run ALL tests: unit, integration, and root-level tests
+          python -m pytest tests/ -v --tb=short --cov=. --cov-report=xml --cov-report=html
         env:
           TESTING: "1"
           DATABASE_URL: "sqlite:///:memory:"
           SECRET_KEY: "test-secret-key-for-ci"
           HF_TOKEN: ""
+          OPENAI_API_KEY: ""
+          OPENWEATHERMAP_API_KEY: ""
         continue-on-error: true
 
       - name: Upload coverage report
