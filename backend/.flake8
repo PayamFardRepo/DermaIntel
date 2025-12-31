@@ -1,0 +1,60 @@
+[flake8]
+# Exclude virtual environment and utility scripts
+exclude =
+    .git,
+    __pycache__,
+    venv,
+    .venv,
+    *.pyc,
+    # Migration scripts
+    migrate_*.py,
+    # Test scripts (individual test files, not test suite)
+    test_*.py,
+    # Utility and one-off scripts
+    check_*.py,
+    fix_*.py,
+    seed_*.py,
+    create_*.py,
+    download_*.py,
+    upload_*.py,
+    train_*.py,
+    organize_*.py,
+    prepare_*.py,
+    add_*.py,
+    integrate_*.py,
+    restore_*.py,
+    extract_*.py,
+    run_*.py,
+    reset_*.py,
+    clear_*.py,
+    export_*.py,
+    # Backup files
+    *.backup,
+    *.broken,
+    *_legacy.py,
+    *_original_backup.py,
+    main_from_github.py,
+    # Data directories
+    data,
+    uploads,
+    checkpoints,
+    checkpoint-*,
+    infectious_disease_model,
+    pigmentation_model,
+    models,
+    BLVS
+
+# Max line length
+max-line-length = 127
+
+# Max complexity
+max-complexity = 15
+
+# Ignore certain errors globally
+ignore =
+    # Line too long (handled by max-line-length)
+    E501,
+    # Line break before binary operator
+    W503,
+    # Line break after binary operator
+    W504
