@@ -43,6 +43,42 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Verify imports work
+        run: |
+          python -c "
+          import os
+          os.environ['TESTING'] = '1'
+          print('Testing imports...')
+          try:
+              from database import Base, User
+              print('  database: OK')
+          except Exception as e:
+              print(f'  database: FAILED - {e}')
+          try:
+              from auth import get_password_hash
+              print('  auth: OK')
+          except Exception as e:
+              print(f'  auth: FAILED - {e}')
+          try:
+              from main import app
+              print('  main: OK')
+          except Exception as e:
+              print(f'  main: FAILED - {e}')
+          "
+        env:
+          TESTING: "1"
+          DATABASE_URL: "sqlite:///:memory:"
+          SECRET_KEY: "test-secret-key-for-ci"
+
+      - name: Collect tests first
+        run: |
+          pytest tests/ --collect-only --ignore=tests/fixtures/ 2>&1 | head -100
+        env:
+          TESTING: "1"
+          DATABASE_URL: "sqlite:///:memory:"
+          SECRET_KEY: "test-secret-key-for-ci"
+        continue-on-error: true
+
       - name: Run tests with coverage
         run: |
           pytest tests/ \
@@ -51,7 +87,7 @@ jobs:
             --cov-report=html \
             --cov-report=term-missing \
             -v \
-            --tb=short \
+            --tb=long \
             --ignore=tests/fixtures/
         env:
           TESTING: "1"
