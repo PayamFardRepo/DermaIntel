@@ -16,8 +16,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { API_BASE_URL } from '../config';
-import AuthService from '../services/AuthService';
 import * as DocumentPicker from 'expo-document-picker';
+import * as SecureStore from 'expo-secure-store';
+
+// Helper to get token directly from SecureStore (more reliable than AuthService.getToken())
+const getAuthToken = async () => {
+  return await SecureStore.getItemAsync('auth_token');
+};
 
 type TabType = 'blood' | 'urine' | 'stool';
 
@@ -183,7 +188,7 @@ export default function LabResultsScreen() {
   const loadLabResults = async () => {
     try {
       setIsLoading(true);
-      const token = await AuthService.getToken();
+      const token = await getAuthToken();
       const response = await fetch(`${API_BASE_URL}/lab-results`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -208,7 +213,7 @@ export default function LabResultsScreen() {
   const handleSubmit = async () => {
     try {
       setIsSaving(true);
-      const token = await AuthService.getToken();
+      const token = await getAuthToken();
 
       // Convert string values to numbers where needed
       const payload: any = {
@@ -350,7 +355,7 @@ export default function LabResultsScreen() {
       setIsParsing(true);
       setParseResult(null);
 
-      const token = await AuthService.getToken();
+      const token = await getAuthToken();
 
       // Create form data
       const formDataToSend = new FormData();
@@ -426,7 +431,7 @@ export default function LabResultsScreen() {
   const handleEditLabResult = async (labId: number) => {
     try {
       setIsLoading(true);
-      const token = await AuthService.getToken();
+      const token = await getAuthToken();
       const response = await fetch(`${API_BASE_URL}/lab-results/${labId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -605,7 +610,7 @@ export default function LabResultsScreen() {
           onPress: async () => {
             try {
               setIsDeleting(true);
-              const token = await AuthService.getToken();
+              const token = await getAuthToken();
               const response = await fetch(`${API_BASE_URL}/lab-results/${labId}`, {
                 method: 'DELETE',
                 headers: {

@@ -658,6 +658,17 @@ async def full_classify(
         "risk_recommendation": risk_recommendation,
         "treatment_recommendations": treatment_recommendations,
 
+        # Unified Risk Assessment (combines AI + ABCDE with clear explanation)
+        "unified_risk": combined_assessment.get("unified_risk") if combined_assessment else {
+            "level": risk_level,
+            "level_display": risk_level.upper() if risk_level else "UNKNOWN",
+            "explanation": f"Risk assessment based on AI classification: {risk_level}",
+            "ai_risk": risk_level,
+            "feature_risk": None,
+            "recommendation": risk_recommendation,
+            "components_agree": True
+        },
+
         # Additional classifications (placeholders for compatibility)
         "inflammatory_condition": None,
         "inflammatory_confidence": None,

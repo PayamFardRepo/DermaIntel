@@ -2137,86 +2137,40 @@ export default function PhotoScreen() {
                 </View>
               </View>
 
-              {/* Data Sources Used */}
-              <View style={styles.multimodalSection}>
-                <Text style={styles.multimodalSectionTitle}>Data Sources Combined:</Text>
-                <View style={styles.dataSourcesContainer}>
-                  {(professionalData?.multimodalAnalysis?.data_sources || analysisResult?.fullResult?.multimodal_analysis?.data_sources || []).map((source: string, index: number) => (
-                    <View key={index} style={styles.dataSourceChip}>
-                      <Text style={styles.dataSourceIcon}>
-                        {source === 'image' ? '📷' : source === 'clinical_history' ? '📋' : source === 'labs' ? '🧪' : source === 'lesion_tracking' ? '📊' : '✓'}
-                      </Text>
-                      <Text style={styles.dataSourceText}>
-                        {source === 'image' ? 'Image' : source === 'clinical_history' ? 'History' : source === 'labs' ? 'Labs' : source === 'lesion_tracking' ? 'Tracking' : source}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
+              {/* Summary description */}
+              <Text style={styles.multimodalDescription}>
+                This analysis combines multiple data sources for improved accuracy.
+              </Text>
+
+              {/* Data Sources Used - shown as inline text */}
+              <View style={styles.dataSourcesRow}>
+                <Text style={styles.dataSourcesLabel}>Sources used: </Text>
+                <Text style={styles.dataSourcesList}>
+                  {(professionalData?.multimodalAnalysis?.data_sources || analysisResult?.fullResult?.multimodal_analysis?.data_sources || [])
+                    .map((source: string) =>
+                      source === 'image' ? 'Image Analysis' :
+                      source === 'clinical_history' ? 'Medical History' :
+                      source === 'labs' ? 'Lab Results' :
+                      source === 'lesion_tracking' ? 'Lesion Tracking' : source
+                    )
+                    .join(', ')}
+                </Text>
               </View>
 
-              {/* Confidence Breakdown */}
-              {(professionalData?.multimodalAnalysis?.confidence_breakdown || analysisResult?.fullResult?.multimodal_analysis?.confidence_breakdown) && (
+              {/* Clinical Factors - only show if there are adjustments */}
+              {(professionalData?.multimodalAnalysis?.clinical_adjustments?.factors?.length > 0 ||
+                analysisResult?.fullResult?.multimodal_analysis?.clinical_adjustments?.factors?.length > 0) && (
                 <View style={styles.multimodalSection}>
-                  <Text style={styles.multimodalSectionTitle}>Confidence Breakdown:</Text>
-                  {(() => {
-                    const breakdown = professionalData?.multimodalAnalysis?.confidence_breakdown || analysisResult?.fullResult?.multimodal_analysis?.confidence_breakdown;
-                    return (
-                      <View style={styles.confidenceBreakdown}>
-                        {breakdown?.image_model !== undefined && (
-                          <View style={styles.confidenceRow}>
-                            <Text style={styles.confidenceLabel}>Image Model:</Text>
-                            <Text style={styles.confidenceValue}>{(breakdown.image_model * 100).toFixed(1)}%</Text>
-                          </View>
-                        )}
-                        {breakdown?.clinical_adjustment !== undefined && breakdown.clinical_adjustment !== 0 && (
-                          <View style={styles.confidenceRow}>
-                            <Text style={styles.confidenceLabel}>Clinical Adjustment:</Text>
-                            <Text style={[styles.confidenceValue, { color: breakdown.clinical_adjustment > 0 ? '#38a169' : '#e53e3e' }]}>
-                              {breakdown.clinical_adjustment > 0 ? '+' : ''}{(breakdown.clinical_adjustment * 100).toFixed(1)}%
-                            </Text>
-                          </View>
-                        )}
-                        {breakdown?.lab_adjustment !== undefined && breakdown.lab_adjustment !== 0 && (
-                          <View style={styles.confidenceRow}>
-                            <Text style={styles.confidenceLabel}>Lab Adjustment:</Text>
-                            <Text style={[styles.confidenceValue, { color: breakdown.lab_adjustment > 0 ? '#38a169' : '#e53e3e' }]}>
-                              {breakdown.lab_adjustment > 0 ? '+' : ''}{(breakdown.lab_adjustment * 100).toFixed(1)}%
-                            </Text>
-                          </View>
-                        )}
-                        {breakdown?.total !== undefined && (
-                          <View style={[styles.confidenceRow, styles.confidenceTotalRow]}>
-                            <Text style={styles.confidenceTotalLabel}>Final Confidence:</Text>
-                            <Text style={styles.confidenceTotalValue}>{(breakdown.total * 100).toFixed(1)}%</Text>
-                          </View>
-                        )}
-                      </View>
-                    );
-                  })()}
-                </View>
-              )}
-
-              {/* Clinical Factors */}
-              <View style={styles.multimodalSection}>
-                <Text style={styles.multimodalSectionTitle}>Clinical Factors:</Text>
-                {(professionalData?.multimodalAnalysis?.clinical_adjustments?.factors?.length > 0 ||
-                  analysisResult?.fullResult?.multimodal_analysis?.clinical_adjustments?.factors?.length > 0) ? (
-                  (professionalData?.multimodalAnalysis?.clinical_adjustments?.factors ||
+                  <Text style={styles.multimodalSectionTitle}>Clinical Adjustments Applied:</Text>
+                  {(professionalData?.multimodalAnalysis?.clinical_adjustments?.factors ||
                     analysisResult?.fullResult?.multimodal_analysis?.clinical_adjustments?.factors || []).slice(0, 3).map((factor: any, index: number) => (
                     <View key={index} style={styles.factorRow}>
                       <Text style={styles.factorName}>{factor.factor?.replace(/_/g, ' ')}</Text>
                       <Text style={styles.factorMultiplier}>x{factor.multiplier?.toFixed(1)}</Text>
                     </View>
-                  ))
-                ) : (
-                  <View style={styles.noFactorsContainer}>
-                    <Text style={styles.noFactorsText}>No clinical factors applied</Text>
-                    <Text style={styles.noFactorsHint}>
-                      Add your skin type, age, and medical history in Profile to enable personalized risk adjustments
-                    </Text>
-                  </View>
-                )}
-              </View>
+                  ))}
+                </View>
+              )}
             </View>
           )}
 
@@ -5746,76 +5700,39 @@ const styles = StyleSheet.create({
     color: 'white',
     letterSpacing: 0.5,
   },
-  multimodalSection: {
+  multimodalDescription: {
+    fontSize: 13,
+    color: '#475569',
     marginBottom: 12,
+    lineHeight: 18,
+  },
+  dataSourcesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 8,
+  },
+  dataSourcesLabel: {
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  dataSourcesList: {
+    fontSize: 13,
+    color: '#0369a1',
+    fontWeight: '600',
+    flex: 1,
+  },
+  multimodalSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e0f2fe',
   },
   multimodalSectionTitle: {
     fontSize: 13,
     fontWeight: '600',
     color: '#0c4a6e',
     marginBottom: 8,
-  },
-  dataSourcesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  dataSourceChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#7dd3fc',
-  },
-  dataSourceIcon: {
-    fontSize: 14,
-    marginRight: 4,
-  },
-  dataSourceText: {
-    fontSize: 12,
-    color: '#0369a1',
-    fontWeight: '500',
-  },
-  confidenceBreakdown: {
-    backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#e0f2fe',
-  },
-  confidenceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  confidenceLabel: {
-    fontSize: 12,
-    color: '#64748b',
-  },
-  confidenceValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  confidenceTotalRow: {
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    marginTop: 6,
-    paddingTop: 8,
-  },
-  confidenceTotalLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0369a1',
-  },
-  confidenceTotalValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0ea5e9',
   },
   factorRow: {
     flexDirection: 'row',
@@ -5839,23 +5756,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#0ea5e9',
-  },
-  noFactorsContainer: {
-    backgroundColor: '#fefce8',
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#fef08a',
-  },
-  noFactorsText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#a16207',
-    marginBottom: 4,
-  },
-  noFactorsHint: {
-    fontSize: 11,
-    color: '#ca8a04',
-    lineHeight: 16,
   },
 });

@@ -546,7 +546,17 @@ export default function ARTreatmentSimulatorScreen() {
     setIsSimulating(true);
 
     try {
-      const token = AuthService.getToken();
+      // Get token directly from SecureStore (same pattern as home.tsx)
+      // AuthService.getToken() only returns in-memory token which may be null
+      const SecureStore = require('expo-secure-store');
+      const token = await SecureStore.getItemAsync('auth_token');
+      console.log('[AR SIMULATOR] Token retrieved from SecureStore:', token ? `${token.substring(0, 20)}...` : 'NULL/UNDEFINED');
+
+      if (!token) {
+        Alert.alert('Authentication Error', 'Please log in again to use this feature');
+        setIsSimulating(false);
+        return;
+      }
 
       // Create FormData for image upload
       const formData = new FormData();

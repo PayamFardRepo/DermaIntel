@@ -1079,6 +1079,60 @@ def build_combined_assessment(
         recommendation = "Routine monitoring appropriate. Seek evaluation if changes occur."
         urgency = "routine"
 
+    # Build user-friendly unified risk explanation
+    unified_explanation_parts = []
+
+    # Risk level display names
+    risk_display_names = {
+        "low": "LOW",
+        "moderate": "MODERATE",
+        "high": "HIGH",
+        "very_high": "VERY HIGH"
+    }
+
+    unified_explanation_parts.append(f"Final Risk Assessment: {risk_display_names.get(combined_risk_level, combined_risk_level.upper())}")
+    unified_explanation_parts.append("")  # Empty line for spacing
+
+    # Explain each component
+    unified_explanation_parts.append("How this was determined:")
+
+    if ml_detected_malignancy:
+        unified_explanation_parts.append(
+            f"  • AI Pattern Recognition: {risk_display_names.get(ml_risk_level, ml_risk_level.upper())} "
+            f"({ml_classification} detected at {ml_confidence:.0%} confidence)"
+        )
+    else:
+        unified_explanation_parts.append(
+            f"  • AI Pattern Recognition: {risk_display_names.get(ml_risk_level, ml_risk_level.upper())} "
+            f"({ml_classification or 'No malignancy detected'})"
+        )
+
+    unified_explanation_parts.append(
+        f"  • ABCDE Feature Analysis: {risk_display_names.get(image_risk_level, image_risk_level.upper())} "
+        f"(score: {abcde_analysis.get('total_score', 'N/A')}/10)"
+    )
+
+    unified_explanation_parts.append("")
+
+    # Explain the final decision
+    if ml_risk_index > image_risk_index:
+        unified_explanation_parts.append(
+            f"  → Final: {risk_display_names.get(combined_risk_level, combined_risk_level.upper())} "
+            "(AI detection takes precedence for potential malignancies)"
+        )
+    elif image_risk_index > ml_risk_index:
+        unified_explanation_parts.append(
+            f"  → Final: {risk_display_names.get(combined_risk_level, combined_risk_level.upper())} "
+            "(Feature analysis indicates concerning characteristics)"
+        )
+    else:
+        unified_explanation_parts.append(
+            f"  → Final: {risk_display_names.get(combined_risk_level, combined_risk_level.upper())} "
+            "(Both assessments agree)"
+        )
+
+    unified_risk_explanation = "\n".join(unified_explanation_parts)
+
     return {
         "ml_classification": {
             "result": ml_classification,
@@ -1103,6 +1157,18 @@ def build_combined_assessment(
                 "AI and image feature assessments differ significantly. "
                 "Both analyses are provided for clinical correlation."
             ) if has_discrepancy else None
+        },
+        "unified_risk": {
+            "level": combined_risk_level,
+            "level_display": risk_display_names.get(combined_risk_level, combined_risk_level.upper()),
+            "explanation": unified_risk_explanation,
+            "ai_risk": ml_risk_level,
+            "ai_risk_display": risk_display_names.get(ml_risk_level, ml_risk_level.upper()),
+            "feature_risk": image_risk_level,
+            "feature_risk_display": risk_display_names.get(image_risk_level, image_risk_level.upper()),
+            "recommendation": recommendation,
+            "urgency": urgency,
+            "components_agree": not has_discrepancy
         },
         "regulatory_transparency": {
             "ml_and_image_analysis_independent": True,

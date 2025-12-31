@@ -9,6 +9,11 @@ from PIL import Image, ImageEnhance, ImageFilter
 import io
 from typing import Tuple, Dict
 
+# Validate imports on load
+print("[TreatmentPredictor] Module loading...")
+print(f"[TreatmentPredictor] OpenCV version: {cv2.__version__}")
+print(f"[TreatmentPredictor] NumPy version: {np.__version__}")
+
 
 class TreatmentOutcomePredictor:
     """
@@ -1019,3 +1024,4 @@ class TreatmentOutcomePredictor:
 
 # Singleton instance
 treatment_predictor = TreatmentOutcomePredictor()
+print("[TreatmentPredictor] Module loaded successfully - predictor ready")

@@ -15,25 +15,34 @@ import {
 import { router } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
-
-const API_BASE_URL = 'http://localhost:8000';
+import { API_BASE_URL } from '../config';
+import DoctorSearchService from '../services/DoctorSearchService';
 
 interface Dermatologist {
-  id: number;
-  full_name: string;
-  credentials: string;
-  practice_name: string;
-  city: string;
-  state: string;
-  specializations: string[];
-  accepts_video_consultations: boolean;
-  accepts_referrals: boolean;
-  accepts_second_opinions: boolean;
-  availability_status: string;
-  typical_wait_time_days: number;
-  average_rating: number;
-  years_experience: number;
-  is_verified: boolean;
+  id?: number;
+  placeId?: string;
+  name: string;
+  full_name?: string;
+  credentials?: string;
+  practice_name?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  specializations?: string[];
+  accepts_video_consultations?: boolean;
+  accepts_referrals?: boolean;
+  accepts_second_opinions?: boolean;
+  availability_status?: string;
+  typical_wait_time_days?: number;
+  average_rating?: number;
+  rating?: number | string;
+  userRatingsTotal?: number;
+  years_experience?: number;
+  is_verified?: boolean;
+  distance?: number;
+  isOpen?: boolean | null;
+  phone?: string;
+  location?: { lat: number; lng: number };
 }
 
 interface Consultation {
@@ -72,9 +81,6 @@ export default function DermatologistIntegrationScreen() {
 
   // Directory state
   const [dermatologists, setDermatologists] = useState<Dermatologist[]>([]);
-  const [searchCity, setSearchCity] = useState('');
-  const [searchState, setSearchState] = useState('');
-  const [filterSpecialization, setFilterSpecialization] = useState('');
   const [selectedDermatologist, setSelectedDermatologist] = useState<Dermatologist | null>(null);
 
   // Consultation state
@@ -117,24 +123,47 @@ export default function DermatologistIntegrationScreen() {
   const loadDermatologists = async () => {
     try {
       setIsLoading(true);
-      let url = `${API_BASE_URL}/dermatologists?limit=50`;
-      if (searchCity) url += `&city=${encodeURIComponent(searchCity)}`;
-      if (searchState) url += `&state=${encodeURIComponent(searchState)}`;
-      if (filterSpecialization) url += `&specialization=${encodeURIComponent(filterSpecialization)}`;
 
-      const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${user?.token}` }
-      });
+      // Use Google Places API to search for real dermatologists
+      const location = await DoctorSearchService.getCurrentLocation();
+      const results = await DoctorSearchService.searchNearbyDoctors(
+        'Dermatologist',
+        location.latitude,
+        location.longitude,
+        16000 // ~10 miles radius
+      );
 
-      if (response.ok) {
-        const data = await response.json();
-        setDermatologists(data.dermatologists || []);
-      } else {
-        console.log('No dermatologists found');
-        setDermatologists([]);
-      }
-    } catch (error) {
+      // Map results to our interface
+      const mappedResults: Dermatologist[] = results.map((doc: any, index: number) => ({
+        id: index + 1,
+        placeId: doc.placeId,
+        name: doc.name,
+        full_name: doc.name,
+        address: doc.address,
+        rating: doc.rating,
+        average_rating: typeof doc.rating === 'number' ? doc.rating : undefined,
+        userRatingsTotal: doc.userRatingsTotal,
+        distance: doc.distance,
+        isOpen: doc.isOpen,
+        phone: doc.phone,
+        location: doc.location,
+        // These are assumed capabilities for dermatologists found via search
+        accepts_video_consultations: true,
+        accepts_referrals: true,
+        accepts_second_opinions: true,
+        is_verified: doc.userRatingsTotal > 50, // Consider verified if many reviews
+      }));
+
+      setDermatologists(mappedResults);
+    } catch (error: any) {
       console.log('Error loading dermatologists:', error);
+      if (error.message?.includes('permission')) {
+        Alert.alert(
+          'Location Required',
+          'Please enable location access to find dermatologists near you.',
+          [{ text: 'OK' }]
+        );
+      }
       setDermatologists([]);
     } finally {
       setIsLoading(false);
@@ -333,37 +362,20 @@ export default function DermatologistIntegrationScreen() {
 
   const renderDirectoryTab = () => (
     <View style={styles.tabContent}>
-      {/* Search Filters */}
+      {/* Search Info */}
       <View style={styles.filterSection}>
-        <Text style={styles.sectionTitle}>{t('dermatologist.directory.findDermatologist')}</Text>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>{t('dermatologist.directory.city')}</Text>
-          <TextInput
-            style={styles.input}
-            placeholder={t('dermatologist.directory.enterCity')}
-            value={searchCity}
-            onChangeText={setSearchCity}
-            placeholderTextColor="#9ca3af"
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>{t('dermatologist.directory.state')}</Text>
-          <TextInput
-            style={styles.input}
-            placeholder={t('dermatologist.directory.enterState')}
-            value={searchState}
-            onChangeText={setSearchState}
-            placeholderTextColor="#9ca3af"
-          />
-        </View>
+        <Text style={styles.sectionTitle}>Find Dermatologists Near You</Text>
+        <Text style={styles.searchDescription}>
+          Search for board-certified dermatologists in your area using your current location.
+        </Text>
 
         <Pressable
           style={styles.searchButton}
           onPress={loadDermatologists}
         >
-          <Text style={styles.searchButtonText}>{t('dermatologist.directory.search')}</Text>
+          <Text style={styles.searchButtonText}>
+            {isLoading ? 'Searching...' : '📍 Search Near Me'}
+          </Text>
         </Pressable>
       </View>
 
@@ -379,78 +391,87 @@ export default function DermatologistIntegrationScreen() {
         <ScrollView style={styles.resultsList}>
           {dermatologists.map((derm) => (
             <Pressable
-              key={derm.id}
+              key={derm.placeId || derm.id}
               style={[
                 styles.dermatologistCard,
-                selectedDermatologist?.id === derm.id && styles.dermatologistCardSelected
+                selectedDermatologist?.placeId === derm.placeId && styles.dermatologistCardSelected
               ]}
               onPress={() => setSelectedDermatologist(derm)}
             >
               <View style={styles.dermHeader}>
-                <Text style={styles.dermName}>{derm.full_name}</Text>
+                <Text style={styles.dermName}>{derm.name || derm.full_name}</Text>
                 {derm.is_verified && <Text style={styles.verifiedBadge}>{t('dermatologist.directory.verified')}</Text>}
               </View>
-              <Text style={styles.dermCredentials}>{derm.credentials}</Text>
-              <Text style={styles.dermPractice}>{derm.practice_name}</Text>
-              <Text style={styles.dermLocation}>{derm.city}, {derm.state}</Text>
 
-              {derm.specializations && derm.specializations.length > 0 && (
-                <View style={styles.specializationsContainer}>
-                  {derm.specializations.map((spec, idx) => (
-                    <Text key={idx} style={styles.specializationTag}>{spec}</Text>
-                  ))}
+              {/* Address and distance */}
+              <Text style={styles.dermLocation}>{derm.address}</Text>
+
+              {/* Distance and open status */}
+              <View style={styles.distanceRow}>
+                {derm.distance !== undefined && (
+                  <Text style={styles.distanceText}>📍 {derm.distance} miles away</Text>
+                )}
+                {derm.isOpen !== null && (
+                  <Text style={[styles.openStatus, derm.isOpen ? styles.openNow : styles.closedNow]}>
+                    {derm.isOpen ? '● Open Now' : '● Closed'}
+                  </Text>
+                )}
+              </View>
+
+              {/* Rating and reviews */}
+              {(derm.rating || derm.average_rating) && (
+                <View style={styles.ratingRow}>
+                  <Text style={styles.rating}>
+                    ⭐ {typeof derm.rating === 'number' ? derm.rating.toFixed(1) : derm.average_rating?.toFixed(1)} / 5.0
+                  </Text>
+                  {derm.userRatingsTotal !== undefined && derm.userRatingsTotal > 0 && (
+                    <Text style={styles.reviewCount}>({derm.userRatingsTotal} reviews)</Text>
+                  )}
                 </View>
               )}
 
-              <View style={styles.dermServices}>
-                {derm.accepts_video_consultations && (
-                  <Text style={styles.serviceTag}>{t('dermatologist.directory.videoTag')}</Text>
-                )}
-                {derm.accepts_referrals && (
-                  <Text style={styles.serviceTag}>{t('dermatologist.directory.referralsTag')}</Text>
-                )}
-                {derm.accepts_second_opinions && (
-                  <Text style={styles.serviceTag}>{t('dermatologist.directory.secondOpinionTag')}</Text>
-                )}
-              </View>
-
-              {derm.average_rating && (
-                <Text style={styles.rating}>⭐ {derm.average_rating.toFixed(1)} / 5.0</Text>
-              )}
-
-              {selectedDermatologist?.id === derm.id && (
+              {selectedDermatologist?.placeId === derm.placeId && (
                 <View style={styles.actionButtons}>
-                  {derm.accepts_video_consultations && (
+                  {/* Call button */}
+                  {derm.phone && (
                     <Pressable
                       style={styles.actionButton}
-                      onPress={() => {
-                        setShowBookingForm(true);
-                        setActiveTab('consultations');
-                      }}
+                      onPress={() => DoctorSearchService.callPhone(derm.phone!)}
                     >
-                      <Text style={styles.actionButtonText}>{t('dermatologist.directory.bookVideoCall')}</Text>
+                      <Text style={styles.actionButtonText}>📞 Call Office</Text>
                     </Pressable>
                   )}
-                  {derm.accepts_referrals && (
+
+                  {/* Directions button */}
+                  {derm.location && (
                     <Pressable
                       style={[styles.actionButton, styles.actionButtonSecondary]}
-                      onPress={() => {
-                        setShowReferralForm(true);
-                        setActiveTab('referrals');
-                      }}
+                      onPress={() => DoctorSearchService.openInMaps(
+                        derm.location!.lat,
+                        derm.location!.lng,
+                        derm.name || derm.full_name || 'Dermatologist'
+                      )}
                     >
-                      <Text style={[styles.actionButtonText, styles.actionButtonTextSecondary]}>{t('dermatologist.directory.createReferral')}</Text>
+                      <Text style={[styles.actionButtonText, styles.actionButtonTextSecondary]}>🗺️ Get Directions</Text>
                     </Pressable>
                   )}
-                  {derm.accepts_second_opinions && (
+
+                  {/* Get more details */}
+                  {derm.placeId && (
                     <Pressable
                       style={[styles.actionButton, styles.actionButtonSecondary]}
-                      onPress={() => {
-                        setShowSecondOpinionForm(true);
-                        setActiveTab('second-opinions');
+                      onPress={async () => {
+                        const details = await DoctorSearchService.getDoctorDetails(derm.placeId!);
+                        if (details) {
+                          Alert.alert(
+                            details.name,
+                            `📍 ${details.address}\n📞 ${details.phone || 'Not available'}\n🌐 ${details.website || 'No website'}\n\n${details.openingHours?.join('\n') || 'Hours not available'}`,
+                            [{ text: 'OK' }]
+                          );
+                        }
                       }}
                     >
-                      <Text style={[styles.actionButtonText, styles.actionButtonTextSecondary]}>{t('dermatologist.directory.get2ndOpinion')}</Text>
+                      <Text style={[styles.actionButtonText, styles.actionButtonTextSecondary]}>ℹ️ More Info</Text>
                     </Pressable>
                   )}
                 </View>
@@ -1038,7 +1059,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#1f2937',
+    marginBottom: 8,
+  },
+  searchDescription: {
+    fontSize: 14,
+    color: '#6b7280',
     marginBottom: 16,
+    lineHeight: 20,
   },
   inputGroup: {
     marginBottom: 16,
@@ -1142,7 +1169,38 @@ const styles = StyleSheet.create({
   dermLocation: {
     fontSize: 13,
     color: '#6b7280',
+    marginBottom: 6,
+  },
+  distanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 8,
+    gap: 12,
+  },
+  distanceText: {
+    fontSize: 13,
+    color: '#0284c7',
+    fontWeight: '500',
+  },
+  openStatus: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  openNow: {
+    color: '#10b981',
+  },
+  closedNow: {
+    color: '#ef4444',
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  reviewCount: {
+    fontSize: 12,
+    color: '#6b7280',
   },
   specializationsContainer: {
     flexDirection: 'row',

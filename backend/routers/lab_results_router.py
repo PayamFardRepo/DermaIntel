@@ -100,6 +100,174 @@ class LabResultCreate(BaseModel):
     # Allergy
     ige_total: Optional[float] = None
 
+    # Additional fields
+    notes: Optional[str] = None
+    is_manually_entered: Optional[bool] = True
+
+    # Extended CBC
+    mcv: Optional[float] = None
+    mch: Optional[float] = None
+    mchc: Optional[float] = None
+    rdw: Optional[float] = None
+    mpv: Optional[float] = None
+
+    # Absolute WBC counts
+    neutrophils_abs: Optional[float] = None
+    lymphocytes_abs: Optional[float] = None
+    monocytes_abs: Optional[float] = None
+    eosinophils_abs: Optional[float] = None
+    basophils_abs: Optional[float] = None
+
+    # Extended metabolic
+    eag: Optional[float] = None
+    bun_creatinine_ratio: Optional[float] = None
+    egfr_african_american: Optional[float] = None
+
+    # Extended liver
+    globulin: Optional[float] = None
+    albumin_globulin_ratio: Optional[float] = None
+
+    # Extended lipids
+    chol_hdl_ratio: Optional[float] = None
+    non_hdl_cholesterol: Optional[float] = None
+
+    # Extended thyroid
+    t3_uptake: Optional[float] = None
+    t4_total: Optional[float] = None
+    free_t4_index: Optional[float] = None
+
+    # Urine
+    urine_color: Optional[str] = None
+    urine_appearance: Optional[str] = None
+    urine_specific_gravity: Optional[float] = None
+    urine_ph: Optional[float] = None
+    urine_protein: Optional[str] = None
+    urine_glucose: Optional[str] = None
+    urine_ketones: Optional[str] = None
+    urine_blood: Optional[str] = None
+    urine_bilirubin: Optional[str] = None
+    urine_urobilinogen: Optional[str] = None
+    urine_nitrite: Optional[str] = None
+    urine_leukocyte_esterase: Optional[str] = None
+    urine_wbc: Optional[str] = None
+    urine_rbc: Optional[str] = None
+    urine_bacteria: Optional[str] = None
+    urine_squamous_epithelial: Optional[str] = None
+    urine_hyaline_cast: Optional[str] = None
+
+    # Stool
+    stool_color: Optional[str] = None
+    stool_occult_blood: Optional[str] = None
+    stool_parasites: Optional[str] = None
+    stool_calprotectin: Optional[float] = None
+
+    class Config:
+        extra = "ignore"  # Ignore extra fields not in the model
+
+
+class LabResultUpdate(BaseModel):
+    """Schema for updating lab results. All fields optional."""
+    test_date: Optional[date] = None
+    test_type: Optional[str] = None
+    lab_name: Optional[str] = None
+    ordering_physician: Optional[str] = None
+    notes: Optional[str] = None
+
+    # All lab value fields are optional for update
+    wbc: Optional[float] = None
+    rbc: Optional[float] = None
+    hemoglobin: Optional[float] = None
+    hematocrit: Optional[float] = None
+    platelets: Optional[float] = None
+    mcv: Optional[float] = None
+    mch: Optional[float] = None
+    mchc: Optional[float] = None
+    rdw: Optional[float] = None
+    mpv: Optional[float] = None
+    neutrophils: Optional[float] = None
+    lymphocytes: Optional[float] = None
+    monocytes: Optional[float] = None
+    eosinophils: Optional[float] = None
+    basophils: Optional[float] = None
+    neutrophils_abs: Optional[float] = None
+    lymphocytes_abs: Optional[float] = None
+    monocytes_abs: Optional[float] = None
+    eosinophils_abs: Optional[float] = None
+    basophils_abs: Optional[float] = None
+    glucose_fasting: Optional[float] = None
+    glucose_random: Optional[float] = None
+    hba1c: Optional[float] = None
+    eag: Optional[float] = None
+    bun: Optional[float] = None
+    creatinine: Optional[float] = None
+    bun_creatinine_ratio: Optional[float] = None
+    egfr: Optional[float] = None
+    egfr_african_american: Optional[float] = None
+    sodium: Optional[float] = None
+    potassium: Optional[float] = None
+    chloride: Optional[float] = None
+    co2: Optional[float] = None
+    calcium: Optional[float] = None
+    magnesium: Optional[float] = None
+    phosphorus: Optional[float] = None
+    alt: Optional[float] = None
+    ast: Optional[float] = None
+    alp: Optional[float] = None
+    bilirubin_total: Optional[float] = None
+    bilirubin_direct: Optional[float] = None
+    albumin: Optional[float] = None
+    total_protein: Optional[float] = None
+    globulin: Optional[float] = None
+    albumin_globulin_ratio: Optional[float] = None
+    cholesterol_total: Optional[float] = None
+    ldl: Optional[float] = None
+    hdl: Optional[float] = None
+    triglycerides: Optional[float] = None
+    chol_hdl_ratio: Optional[float] = None
+    non_hdl_cholesterol: Optional[float] = None
+    tsh: Optional[float] = None
+    t4_free: Optional[float] = None
+    t3_free: Optional[float] = None
+    t3_uptake: Optional[float] = None
+    t4_total: Optional[float] = None
+    free_t4_index: Optional[float] = None
+    iron: Optional[float] = None
+    ferritin: Optional[float] = None
+    tibc: Optional[float] = None
+    vitamin_d: Optional[float] = None
+    vitamin_b12: Optional[float] = None
+    folate: Optional[float] = None
+    crp: Optional[float] = None
+    esr: Optional[float] = None
+    ana_positive: Optional[bool] = None
+    ana_titer: Optional[str] = None
+    rheumatoid_factor: Optional[float] = None
+    ige_total: Optional[float] = None
+    urine_color: Optional[str] = None
+    urine_appearance: Optional[str] = None
+    urine_specific_gravity: Optional[float] = None
+    urine_ph: Optional[float] = None
+    urine_protein: Optional[str] = None
+    urine_glucose: Optional[str] = None
+    urine_ketones: Optional[str] = None
+    urine_blood: Optional[str] = None
+    urine_bilirubin: Optional[str] = None
+    urine_urobilinogen: Optional[str] = None
+    urine_nitrite: Optional[str] = None
+    urine_leukocyte_esterase: Optional[str] = None
+    urine_wbc: Optional[str] = None
+    urine_rbc: Optional[str] = None
+    urine_bacteria: Optional[str] = None
+    urine_squamous_epithelial: Optional[str] = None
+    urine_hyaline_cast: Optional[str] = None
+    stool_color: Optional[str] = None
+    stool_occult_blood: Optional[str] = None
+    stool_parasites: Optional[str] = None
+    stool_calprotectin: Optional[float] = None
+
+    class Config:
+        extra = "ignore"
+
 
 # Reference ranges for abnormality detection
 REFERENCE_RANGES = {
@@ -282,161 +450,27 @@ async def get_lab_results(
 
 @router.post("/lab-results")
 async def create_lab_result(
-    test_date: date = Form(...),
-    test_type: str = Form("blood"),
-    lab_name: Optional[str] = Form(None),
-    ordering_physician: Optional[str] = Form(None),
-    # CBC
-    wbc: Optional[float] = Form(None),
-    rbc: Optional[float] = Form(None),
-    hemoglobin: Optional[float] = Form(None),
-    hematocrit: Optional[float] = Form(None),
-    platelets: Optional[float] = Form(None),
-    # Differential
-    neutrophils: Optional[float] = Form(None),
-    lymphocytes: Optional[float] = Form(None),
-    monocytes: Optional[float] = Form(None),
-    eosinophils: Optional[float] = Form(None),
-    basophils: Optional[float] = Form(None),
-    # Metabolic
-    glucose_fasting: Optional[float] = Form(None),
-    glucose_random: Optional[float] = Form(None),
-    hba1c: Optional[float] = Form(None),
-    bun: Optional[float] = Form(None),
-    creatinine: Optional[float] = Form(None),
-    egfr: Optional[float] = Form(None),
-    sodium: Optional[float] = Form(None),
-    potassium: Optional[float] = Form(None),
-    chloride: Optional[float] = Form(None),
-    co2: Optional[float] = Form(None),
-    calcium: Optional[float] = Form(None),
-    magnesium: Optional[float] = Form(None),
-    phosphorus: Optional[float] = Form(None),
-    # Liver
-    alt: Optional[float] = Form(None),
-    ast: Optional[float] = Form(None),
-    alp: Optional[float] = Form(None),
-    bilirubin_total: Optional[float] = Form(None),
-    bilirubin_direct: Optional[float] = Form(None),
-    albumin: Optional[float] = Form(None),
-    total_protein: Optional[float] = Form(None),
-    # Lipid
-    cholesterol_total: Optional[float] = Form(None),
-    ldl: Optional[float] = Form(None),
-    hdl: Optional[float] = Form(None),
-    triglycerides: Optional[float] = Form(None),
-    # Thyroid
-    tsh: Optional[float] = Form(None),
-    t4_free: Optional[float] = Form(None),
-    t3_free: Optional[float] = Form(None),
-    # Iron
-    iron: Optional[float] = Form(None),
-    ferritin: Optional[float] = Form(None),
-    tibc: Optional[float] = Form(None),
-    # Vitamins
-    vitamin_d: Optional[float] = Form(None),
-    vitamin_b12: Optional[float] = Form(None),
-    folate: Optional[float] = Form(None),
-    # Inflammatory
-    crp: Optional[float] = Form(None),
-    esr: Optional[float] = Form(None),
-    # Autoimmune
-    ana_positive: Optional[bool] = Form(None),
-    ana_titer: Optional[str] = Form(None),
-    rheumatoid_factor: Optional[float] = Form(None),
-    # Allergy
-    ige_total: Optional[float] = Form(None),
+    data: LabResultCreate,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Create a new lab result entry."""
+    """Create a new lab result entry. Accepts JSON body."""
 
+    # Convert Pydantic model to dict, excluding None values for cleaner DB insert
+    lab_data_dict = data.model_dump(exclude_none=True)
+
+    # Create the lab result with all provided fields
     lab_result = LabResults(
         user_id=current_user.id,
-        test_date=test_date,
-        test_type=test_type,
-        lab_name=lab_name,
-        ordering_physician=ordering_physician,
-        is_manually_entered=True,
-        # CBC
-        wbc=wbc,
-        rbc=rbc,
-        hemoglobin=hemoglobin,
-        hematocrit=hematocrit,
-        platelets=platelets,
-        # Differential
-        neutrophils=neutrophils,
-        lymphocytes=lymphocytes,
-        monocytes=monocytes,
-        eosinophils=eosinophils,
-        basophils=basophils,
-        # Metabolic
-        glucose_fasting=glucose_fasting,
-        glucose_random=glucose_random,
-        hba1c=hba1c,
-        bun=bun,
-        creatinine=creatinine,
-        egfr=egfr,
-        sodium=sodium,
-        potassium=potassium,
-        chloride=chloride,
-        co2=co2,
-        calcium=calcium,
-        magnesium=magnesium,
-        phosphorus=phosphorus,
-        # Liver
-        alt=alt,
-        ast=ast,
-        alp=alp,
-        bilirubin_total=bilirubin_total,
-        bilirubin_direct=bilirubin_direct,
-        albumin=albumin,
-        total_protein=total_protein,
-        # Lipid
-        cholesterol_total=cholesterol_total,
-        ldl=ldl,
-        hdl=hdl,
-        triglycerides=triglycerides,
-        # Thyroid
-        tsh=tsh,
-        t4_free=t4_free,
-        t3_free=t3_free,
-        # Iron
-        iron=iron,
-        ferritin=ferritin,
-        tibc=tibc,
-        # Vitamins
-        vitamin_d=vitamin_d,
-        vitamin_b12=vitamin_b12,
-        folate=folate,
-        # Inflammatory
-        crp=crp,
-        esr=esr,
-        # Autoimmune
-        ana_positive=ana_positive,
-        ana_titer=ana_titer,
-        rheumatoid_factor=rheumatoid_factor,
-        # Allergy
-        ige_total=ige_total,
+        **lab_data_dict
     )
 
     db.add(lab_result)
     db.commit()
     db.refresh(lab_result)
 
-    # Check for abnormalities
-    lab_data = {
-        "wbc": wbc, "rbc": rbc, "hemoglobin": hemoglobin, "hematocrit": hematocrit,
-        "platelets": platelets, "neutrophils": neutrophils, "lymphocytes": lymphocytes,
-        "eosinophils": eosinophils, "glucose_fasting": glucose_fasting, "hba1c": hba1c,
-        "creatinine": creatinine, "sodium": sodium, "potassium": potassium,
-        "alt": alt, "ast": ast, "albumin": albumin, "cholesterol_total": cholesterol_total,
-        "ldl": ldl, "hdl": hdl, "triglycerides": triglycerides, "tsh": tsh,
-        "iron": iron, "ferritin": ferritin, "vitamin_d": vitamin_d, "vitamin_b12": vitamin_b12,
-        "crp": crp, "esr": esr, "ige_total": ige_total
-    }
-
-    analysis = check_abnormalities(lab_data)
+    # Check for abnormalities using the provided data
+    analysis = check_abnormalities(lab_data_dict)
 
     return {
         "message": "Lab results saved successfully",
@@ -480,51 +514,11 @@ async def get_lab_result(
 @router.put("/lab-results/{lab_id}")
 async def update_lab_result(
     lab_id: int,
-    test_date: Optional[date] = Form(None),
-    test_type: Optional[str] = Form(None),
-    lab_name: Optional[str] = Form(None),
-    ordering_physician: Optional[str] = Form(None),
-    # CBC
-    wbc: Optional[float] = Form(None),
-    rbc: Optional[float] = Form(None),
-    hemoglobin: Optional[float] = Form(None),
-    hematocrit: Optional[float] = Form(None),
-    platelets: Optional[float] = Form(None),
-    # Differential
-    neutrophils: Optional[float] = Form(None),
-    lymphocytes: Optional[float] = Form(None),
-    monocytes: Optional[float] = Form(None),
-    eosinophils: Optional[float] = Form(None),
-    basophils: Optional[float] = Form(None),
-    # Metabolic
-    glucose_fasting: Optional[float] = Form(None),
-    hba1c: Optional[float] = Form(None),
-    creatinine: Optional[float] = Form(None),
-    sodium: Optional[float] = Form(None),
-    potassium: Optional[float] = Form(None),
-    # Liver
-    alt: Optional[float] = Form(None),
-    ast: Optional[float] = Form(None),
-    albumin: Optional[float] = Form(None),
-    # Lipid
-    cholesterol_total: Optional[float] = Form(None),
-    ldl: Optional[float] = Form(None),
-    hdl: Optional[float] = Form(None),
-    triglycerides: Optional[float] = Form(None),
-    # Thyroid
-    tsh: Optional[float] = Form(None),
-    # Vitamins
-    vitamin_d: Optional[float] = Form(None),
-    vitamin_b12: Optional[float] = Form(None),
-    # Inflammatory
-    crp: Optional[float] = Form(None),
-    esr: Optional[float] = Form(None),
-    # Allergy
-    ige_total: Optional[float] = Form(None),
+    data: LabResultUpdate,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Update an existing lab result."""
+    """Update an existing lab result. Accepts JSON body."""
     result = db.query(LabResults).filter(
         LabResults.id == lab_id,
         LabResults.user_id == current_user.id
@@ -533,29 +527,10 @@ async def update_lab_result(
     if not result:
         raise HTTPException(status_code=404, detail="Lab result not found")
 
-    # Update provided fields
-    if test_date is not None:
-        result.test_date = test_date
-    if test_type is not None:
-        result.test_type = test_type
-    if lab_name is not None:
-        result.lab_name = lab_name
-    if ordering_physician is not None:
-        result.ordering_physician = ordering_physician
-
-    # Update lab values if provided
-    lab_fields = [
-        "wbc", "rbc", "hemoglobin", "hematocrit", "platelets",
-        "neutrophils", "lymphocytes", "monocytes", "eosinophils", "basophils",
-        "glucose_fasting", "hba1c", "creatinine", "sodium", "potassium",
-        "alt", "ast", "albumin", "cholesterol_total", "ldl", "hdl", "triglycerides",
-        "tsh", "vitamin_d", "vitamin_b12", "crp", "esr", "ige_total"
-    ]
-
-    local_vars = locals()
-    for field in lab_fields:
-        value = local_vars.get(field)
-        if value is not None:
+    # Update only fields that were provided (not None)
+    update_data = data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        if hasattr(result, field):
             setattr(result, field, value)
 
     db.commit()
@@ -589,23 +564,44 @@ async def delete_lab_result(
 
 
 @router.post("/lab-results/parse-pdf")
-async def parse_lab_pdf(
+async def parse_lab_pdf_endpoint(
     file: UploadFile = File(...),
+    use_ocr: bool = Form(False),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
     Parse lab results from an uploaded PDF.
-    Note: This is a placeholder - actual PDF parsing requires OCR integration.
+    Uses regex patterns to extract common lab values.
     """
     # Check file type
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
-    # For now, return a message indicating manual entry is needed
-    return {
-        "message": "PDF uploaded successfully. PDF parsing is not yet implemented - please enter values manually.",
-        "filename": file.filename,
-        "parsed_values": {},
-        "requires_manual_entry": True
-    }
+    try:
+        # Import the parser
+        from lab_pdf_parser import parse_lab_pdf, validate_extracted_values
+
+        # Read the PDF bytes
+        pdf_bytes = await file.read()
+
+        # Parse the PDF
+        result = parse_lab_pdf(pdf_bytes, use_ocr=use_ocr)
+
+        # Validate the extracted values
+        validation = validate_extracted_values(result.get("extracted_values", {}))
+
+        # Add validation warnings to parsing notes
+        if validation.get("warnings"):
+            result["parsing_notes"].extend(validation["warnings"])
+
+        return result
+
+    except Exception as e:
+        print(f"Error parsing lab PDF: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to parse PDF: {str(e)}. Try enabling OCR for scanned documents."
+        )
