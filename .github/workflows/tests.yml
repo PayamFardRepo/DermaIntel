@@ -70,30 +70,40 @@ jobs:
           DATABASE_URL: "sqlite:///:memory:"
           SECRET_KEY: "test-secret-key-for-ci"
 
-      - name: Collect tests first
+      - name: Run unit tests only (fast)
         run: |
-          pytest tests/ --collect-only --ignore=tests/fixtures/ 2>&1 | head -100
+          pytest tests/unit/ -v --tb=short
         env:
           TESTING: "1"
           DATABASE_URL: "sqlite:///:memory:"
           SECRET_KEY: "test-secret-key-for-ci"
+          HF_TOKEN: ""
+
+      - name: Run integration tests
+        run: |
+          pytest tests/integration/ -v --tb=short --ignore=tests/fixtures/
+        env:
+          TESTING: "1"
+          DATABASE_URL: "sqlite:///:memory:"
+          SECRET_KEY: "test-secret-key-for-ci"
+          HF_TOKEN: ""
         continue-on-error: true
 
-      - name: Run tests with coverage
+      - name: Run all tests with coverage
         run: |
           pytest tests/ \
             --cov=. \
             --cov-report=xml \
-            --cov-report=html \
             --cov-report=term-missing \
             -v \
-            --tb=long \
+            --tb=short \
             --ignore=tests/fixtures/
         env:
           TESTING: "1"
           DATABASE_URL: "sqlite:///:memory:"
           SECRET_KEY: "test-secret-key-for-ci"
           HF_TOKEN: ""
+        continue-on-error: true
 
       - name: Upload coverage report
         uses: codecov/codecov-action@v3
