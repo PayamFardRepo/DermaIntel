@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 # OpenWeatherMap API Key - from environment or fallback
 import os
-OPENWEATHERMAP_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY", "bc9bc76fe0481a85d3f90343683cdda3")
+# API Key must be set in environment variables (never commit API keys!)
+OPENWEATHERMAP_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY", "")
 
 
 class AlertPriority(Enum):
