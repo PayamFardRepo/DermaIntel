@@ -339,7 +339,7 @@ export default function GeneticTestingScreen() {
               ))}
             </View>
 
-            {test.melanoma_risk_level && (
+            {test.melanoma_risk_level && typeof test.melanoma_risk_level === 'string' && (
               <View style={styles.riskRow}>
                 <Text style={styles.riskLabel}>Melanoma Risk:</Text>
                 <Text style={[styles.riskValue, { color: getRiskLevelColor(test.melanoma_risk_level) }]}>
