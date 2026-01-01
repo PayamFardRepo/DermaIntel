@@ -721,15 +721,20 @@ async def upload_vcf_file(
         # Add variants
         pathogenic_count = 0
         likely_pathogenic_count = 0
+        risk_factor_count = 0
         vus_count = 0
 
         for var_data in parsed["variants"]:
             classification = var_data.get("clinical_significance", "vus")
             gene_symbol = var_data["gene_symbol"]
 
-            # Look up melanoma risk modifier from gene database
+            # Look up gene info from database
             gene_info = DERMATOLOGY_GENES.get(gene_symbol, {})
             melanoma_modifier = gene_info.get("melanoma_risk_multiplier")
+
+            # If no classification was found but gene has risk multiplier, mark as risk_factor
+            if classification == "unknown" and melanoma_modifier and melanoma_modifier > 1:
+                classification = "risk_factor"
 
             variant = GeneticVariant(
                 test_result_id=test_result.id,
@@ -747,7 +752,7 @@ async def upload_vcf_file(
                 quality_score=var_data.get("quality"),
                 filter_status=var_data.get("filter"),
                 skin_condition_associations=var_data.get("dermatology_relevance"),
-                melanoma_risk_modifier=melanoma_modifier if classification in ["pathogenic", "likely_pathogenic"] else None,
+                melanoma_risk_modifier=melanoma_modifier if classification in ["pathogenic", "likely_pathogenic", "risk_factor"] else None,
             )
 
             db.add(variant)
@@ -756,6 +761,8 @@ async def upload_vcf_file(
                 pathogenic_count += 1
             elif classification == "likely_pathogenic":
                 likely_pathogenic_count += 1
+            elif classification == "risk_factor":
+                risk_factor_count += 1
             else:
                 vus_count += 1
 
@@ -781,6 +788,7 @@ async def upload_vcf_file(
             "dermatology_relevant_variants": parsed["metadata"]["dermatology_relevant"],
             "pathogenic_found": pathogenic_count,
             "likely_pathogenic_found": likely_pathogenic_count,
+            "risk_factor_found": risk_factor_count,
             "vus_found": vus_count,
             "risk_assessment": risk_assessment,
             "message": "VCF file processed successfully"
@@ -919,10 +927,10 @@ async def get_genetic_risk_summary(
             "risk_modifier": 1.0,
         }
 
-    # Get all pathogenic/likely pathogenic variants
-    pathogenic_variants = db.query(GeneticVariant).filter(
+    # Get all significant variants (pathogenic, likely pathogenic, and risk factors like MC1R)
+    significant_variants = db.query(GeneticVariant).filter(
         GeneticVariant.user_id == current_user.id,
-        GeneticVariant.classification.in_(["pathogenic", "likely_pathogenic"])
+        GeneticVariant.classification.in_(["pathogenic", "likely_pathogenic", "risk_factor", "likely_risk_factor"])
     ).all()
 
     # Calculate combined risk
@@ -931,7 +939,7 @@ async def get_genetic_risk_summary(
     max_bcc_multiplier = 1.0
     recommendations = []
 
-    for variant in pathogenic_variants:
+    for variant in significant_variants:
         gene = variant.gene_symbol
         affected_genes.add(gene)
 
@@ -987,7 +995,7 @@ async def get_genetic_risk_summary(
     return {
         "has_genetic_data": True,
         "tests_count": len(results),
-        "pathogenic_variants_count": len(pathogenic_variants),
+        "significant_variants_count": len(significant_variants),
         "affected_genes": list(affected_genes),
         "melanoma_risk": {
             "level": melanoma_level,

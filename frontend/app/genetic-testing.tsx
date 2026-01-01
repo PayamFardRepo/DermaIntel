@@ -757,20 +757,26 @@ export default function GeneticTestingScreen() {
                       <Text style={[
                         styles.variantValue,
                         styles.classificationBadge,
-                        variant.acmg_classification === 'pathogenic' && styles.pathogenicBadge,
-                        variant.acmg_classification === 'likely_pathogenic' && styles.likelyPathogenicBadge,
-                        variant.acmg_classification === 'vus' && styles.vusBadge,
+                        variant.classification === 'pathogenic' && styles.pathogenicBadge,
+                        variant.classification === 'likely_pathogenic' && styles.likelyPathogenicBadge,
+                        variant.classification === 'vus' && styles.vusBadge,
+                        variant.classification === 'risk_factor' && styles.riskFactorBadge,
                       ]}>
-                        {(variant.acmg_classification || 'Unknown').replace('_', ' ').toUpperCase()}
+                        {variant.classification
+                          ? variant.classification.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+                          : 'Unknown'}
                       </Text>
                     </View>
                     <View style={styles.variantRow}>
                       <Text style={styles.variantLabel}>Impact:</Text>
                       <Text style={styles.variantValue}>
-                        {variant.clinical_significance ||
-                         (variant.associated_conditions && variant.associated_conditions.length > 0
-                           ? variant.associated_conditions.join(', ')
-                           : 'Unknown')}
+                        {variant.melanoma_risk_modifier && variant.melanoma_risk_modifier > 1
+                          ? `${variant.melanoma_risk_modifier}X increased melanoma risk`
+                          : variant.skin_condition_associations && variant.skin_condition_associations.length > 0
+                            ? (Array.isArray(variant.skin_condition_associations)
+                                ? variant.skin_condition_associations.join(', ')
+                                : variant.skin_condition_associations)
+                            : 'No significant impact'}
                       </Text>
                     </View>
                     {variant.zygosity && (
@@ -1455,6 +1461,10 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
     overflow: 'hidden',
+  },
+  riskFactorBadge: {
+    backgroundColor: '#fef3c7',
+    color: '#d97706',
   },
   modalCloseButton: {
     backgroundColor: '#8b5cf6',
