@@ -1263,7 +1263,7 @@ async def update_family_member(
     earliest_diagnosis_age: Optional[int] = Form(None),
     has_melanoma: Optional[bool] = Form(None),
     melanoma_count: Optional[int] = Form(None),
-    melanoma_age_at_diagnosis: Optional[int] = Form(None),
+    melanoma_age_at_diagnosis: Optional[str] = Form(None),
     melanoma_outcome: Optional[str] = Form(None),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
@@ -1271,6 +1271,15 @@ async def update_family_member(
     """
     Update an existing family member's information.
     """
+    # Helper to parse string to int
+    def parse_int_value(val: Optional[str]) -> Optional[int]:
+        if val is None or val == '':
+            return None
+        try:
+            return int(val)
+        except ValueError:
+            return None
+
     member = db.query(FamilyMember).filter(
         FamilyMember.id == member_id,
         FamilyMember.user_id == current_user.id
@@ -1305,8 +1314,10 @@ async def update_family_member(
     if melanoma_count is not None:
         member.melanoma_count = melanoma_count
     if melanoma_age_at_diagnosis is not None:
-        member.melanoma_age_at_diagnosis = melanoma_age_at_diagnosis
-    if melanoma_outcome is not None:
+        parsed_age = parse_int_value(melanoma_age_at_diagnosis)
+        if parsed_age is not None:
+            member.melanoma_age_at_diagnosis = parsed_age
+    if melanoma_outcome is not None and melanoma_outcome != '':
         member.melanoma_outcome = melanoma_outcome
 
     db.commit()
