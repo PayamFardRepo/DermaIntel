@@ -497,16 +497,138 @@ async def get_lab_result(
     if not result:
         raise HTTPException(status_code=404, detail="Lab result not found")
 
-    # Convert to dict, excluding SQLAlchemy internals
-    lab_data = {}
-    for column in LabResults.__table__.columns:
-        value = getattr(result, column.name)
-        if column.name == "test_date" and value:
-            lab_data[column.name] = value.isoformat()
-        elif column.name in ["created_at", "updated_at"] and value:
-            lab_data[column.name] = value.isoformat()
-        else:
-            lab_data[column.name] = value
+    # Return data in nested structure that frontend expects
+    lab_data = {
+        "id": result.id,
+        "user_id": result.user_id,
+        "test_date": result.test_date.isoformat() if result.test_date else None,
+        "test_type": result.test_type,
+        "lab_name": result.lab_name,
+        "ordering_physician": result.ordering_physician,
+        "notes": getattr(result, 'notes', None),
+        "blood_panel": {
+            "cbc": {
+                "wbc": result.wbc,
+                "rbc": result.rbc,
+                "hemoglobin": result.hemoglobin,
+                "hematocrit": result.hematocrit,
+                "platelets": result.platelets,
+                "mcv": result.mcv,
+                "mch": result.mch,
+                "mchc": result.mchc,
+                "rdw": result.rdw,
+                "mpv": result.mpv,
+            },
+            "wbc_differential": {
+                "neutrophils": result.neutrophils,
+                "lymphocytes": result.lymphocytes,
+                "monocytes": result.monocytes,
+                "eosinophils": result.eosinophils,
+                "basophils": result.basophils,
+            },
+            "wbc_absolute": {
+                "neutrophils_abs": result.neutrophils_abs,
+                "lymphocytes_abs": result.lymphocytes_abs,
+                "monocytes_abs": result.monocytes_abs,
+                "eosinophils_abs": result.eosinophils_abs,
+                "basophils_abs": result.basophils_abs,
+            },
+            "metabolic": {
+                "glucose_fasting": result.glucose_fasting,
+                "hba1c": result.hba1c,
+                "eag": result.eag,
+                "bun": result.bun,
+                "creatinine": result.creatinine,
+                "bun_creatinine_ratio": result.bun_creatinine_ratio,
+                "egfr": result.egfr,
+                "egfr_african_american": result.egfr_african_american,
+                "sodium": result.sodium,
+                "potassium": result.potassium,
+                "chloride": result.chloride,
+                "co2": result.co2,
+                "calcium": result.calcium,
+                "magnesium": result.magnesium,
+            },
+            "liver": {
+                "alt": result.alt,
+                "ast": result.ast,
+                "alp": result.alp,
+                "bilirubin_total": result.bilirubin_total,
+                "albumin": result.albumin,
+                "total_protein": result.total_protein,
+                "globulin": result.globulin,
+                "albumin_globulin_ratio": result.albumin_globulin_ratio,
+            },
+            "lipid": {
+                "cholesterol_total": result.cholesterol_total,
+                "ldl": result.ldl,
+                "hdl": result.hdl,
+                "triglycerides": result.triglycerides,
+                "chol_hdl_ratio": result.chol_hdl_ratio,
+                "non_hdl_cholesterol": result.non_hdl_cholesterol,
+            },
+            "thyroid": {
+                "tsh": result.tsh,
+                "t3_uptake": result.t3_uptake,
+                "t4_total": result.t4_total,
+                "free_t4_index": result.free_t4_index,
+                "t4_free": result.t4_free,
+            },
+            "iron": {
+                "iron": result.iron,
+                "ferritin": result.ferritin,
+                "tibc": result.tibc,
+            },
+            "vitamins": {
+                "vitamin_d": result.vitamin_d,
+                "vitamin_b12": result.vitamin_b12,
+                "folate": result.folate,
+            },
+            "inflammatory": {
+                "crp": result.crp,
+                "esr": result.esr,
+            },
+            "autoimmune": {
+                "ana_positive": result.ana_positive,
+            },
+            "allergy": {
+                "ige_total": result.ige_total,
+            },
+        },
+        "urinalysis": {
+            "physical": {
+                "color": result.urine_color,
+                "appearance": result.urine_appearance,
+                "specific_gravity": result.urine_specific_gravity,
+                "ph": result.urine_ph,
+            },
+            "chemical": {
+                "protein": result.urine_protein,
+                "glucose": result.urine_glucose,
+                "ketones": result.urine_ketones,
+                "blood": result.urine_blood,
+                "bilirubin": result.urine_bilirubin,
+                "urobilinogen": result.urine_urobilinogen,
+                "nitrite": result.urine_nitrite,
+                "leukocyte_esterase": result.urine_leukocyte_esterase,
+            },
+            "microscopic": {
+                "wbc": result.urine_wbc,
+                "rbc": result.urine_rbc,
+                "bacteria": result.urine_bacteria,
+                "squamous_epithelial": result.urine_squamous_epithelial,
+            },
+            "casts": {
+                "hyaline_cast": result.urine_hyaline_cast,
+            },
+        },
+        "stool_test": {
+            "color": result.stool_color,
+            "occult_blood": result.stool_occult_blood,
+            "parasites": result.stool_parasites,
+            "calprotectin": result.stool_calprotectin,
+        },
+    }
 
     return lab_data
 
