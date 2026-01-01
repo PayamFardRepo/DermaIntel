@@ -258,7 +258,36 @@ class MultimodalAnalyzer:
                 logger.warning(f"Failed to integrate patient history: {e}")
 
         # ================================================================
-        # 2. FETCH AND INTEGRATE LAB RESULTS
+        # 2. INTEGRATE GENETIC RISK FACTORS
+        # ================================================================
+        try:
+            genetic_result = self._integrate_genetic_risk(
+                db_session, user_id, current_probabilities
+            )
+
+            if genetic_result and genetic_result.get("has_genetic_data"):
+                data_sources.append("genetic_testing")
+
+                # Apply genetic risk adjustments
+                genetic_adjusted_probs = genetic_result.get("adjusted_probabilities", {})
+                if genetic_adjusted_probs:
+                    genetic_delta = genetic_adjusted_probs.get("Melanoma", 0) - current_probabilities.get("Melanoma", 0)
+                    current_probabilities = genetic_adjusted_probs
+                    confidence_breakdown["genetic_adjustment"] = round(genetic_delta, 4)
+
+                # Add genetic risk factors
+                if genetic_result.get("melanoma_multiplier", 1.0) > 1.0:
+                    result.risk_factors.append(
+                        f"Genetic risk: {genetic_result['melanoma_multiplier']:.1f}x melanoma risk (MC1R variants)"
+                    )
+
+                logger.info(f"Genetic data integrated: {genetic_result.get('melanoma_multiplier', 1.0):.1f}x melanoma risk")
+
+        except Exception as e:
+            logger.warning(f"Failed to integrate genetic data: {e}")
+
+        # ================================================================
+        # 4. FETCH AND INTEGRATE LAB RESULTS
         # ================================================================
         if include_labs:
             try:
@@ -293,7 +322,7 @@ class MultimodalAnalyzer:
                 logger.warning(f"Failed to integrate lab results: {e}")
 
         # ================================================================
-        # 3. COMPARE WITH HISTORICAL LESION DATA
+        # 5. COMPARE WITH HISTORICAL LESION DATA
         # ================================================================
         if include_lesion_tracking and (lesion_group_id or body_location):
             try:
@@ -320,7 +349,7 @@ class MultimodalAnalyzer:
                 logger.warning(f"Failed to compare with history: {e}")
 
         # ================================================================
-        # 4. CALCULATE FINAL RESULTS
+        # 6. CALCULATE FINAL RESULTS
         # ================================================================
 
         # Update final probabilities and confidence
@@ -517,6 +546,70 @@ class MultimodalAnalyzer:
                 result[field] = value
 
         return result
+
+    def _integrate_genetic_risk(
+        self,
+        db_session,
+        user_id: int,
+        probabilities: Dict[str, float]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Integrate genetic risk factors from genetic testing results.
+
+        Returns:
+            Dictionary with genetic risk adjustments
+        """
+        from database import GeneticVariant
+
+        # Find genetic variants with melanoma risk modifiers
+        variants = db_session.query(GeneticVariant).filter(
+            GeneticVariant.user_id == user_id,
+            GeneticVariant.melanoma_risk_modifier != None,
+            GeneticVariant.melanoma_risk_modifier > 1.0
+        ).all()
+
+        if not variants:
+            return {"has_genetic_data": False}
+
+        # Calculate combined melanoma risk multiplier
+        max_multiplier = 1.0
+        risk_genes = []
+
+        for variant in variants:
+            if variant.melanoma_risk_modifier and variant.melanoma_risk_modifier > max_multiplier:
+                max_multiplier = variant.melanoma_risk_modifier
+                risk_genes.append(variant.gene_symbol)
+
+        if max_multiplier <= 1.0:
+            return {"has_genetic_data": False}
+
+        # Adjust probabilities - boost melanoma probability
+        adjusted_probs = probabilities.copy()
+
+        # Find melanoma key (might be "Melanoma", "mel", or "MEL")
+        melanoma_key = None
+        for key in adjusted_probs.keys():
+            if "melanoma" in key.lower() or key.lower() == "mel":
+                melanoma_key = key
+                break
+
+        if melanoma_key:
+            # Apply multiplier to melanoma probability
+            original_melanoma = adjusted_probs.get(melanoma_key, 0)
+            adjusted_melanoma = min(original_melanoma * max_multiplier, 0.95)  # Cap at 95%
+            adjusted_probs[melanoma_key] = adjusted_melanoma
+
+            # Renormalize
+            total = sum(adjusted_probs.values())
+            if total > 0:
+                adjusted_probs = {k: v / total for k, v in adjusted_probs.items()}
+
+        return {
+            "has_genetic_data": True,
+            "melanoma_multiplier": max_multiplier,
+            "risk_genes": list(set(risk_genes)),
+            "adjusted_probabilities": adjusted_probs
+        }
 
     def _compare_with_history(
         self,
