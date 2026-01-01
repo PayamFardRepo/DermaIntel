@@ -29,6 +29,7 @@ interface UserProfile {
   medical_history?: string;
   skin_type?: string;
   family_history?: string;
+  ethnicity?: string;
   city?: string;
   state?: string;
   country?: string;
@@ -83,6 +84,20 @@ const SKIN_TYPES = [
 const GENDERS = [
   { value: 'male', label: 'Male' },
   { value: 'female', label: 'Female' },
+  { value: 'other', label: 'Other' },
+  { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+];
+
+const ETHNICITIES = [
+  { value: 'caucasian', label: 'Caucasian/White' },
+  { value: 'african_american', label: 'African American/Black' },
+  { value: 'hispanic', label: 'Hispanic/Latino' },
+  { value: 'asian', label: 'Asian' },
+  { value: 'south_asian', label: 'South Asian' },
+  { value: 'middle_eastern', label: 'Middle Eastern' },
+  { value: 'native_american', label: 'Native American/Alaska Native' },
+  { value: 'pacific_islander', label: 'Native Hawaiian/Pacific Islander' },
+  { value: 'mixed', label: 'Mixed/Multiple' },
   { value: 'other', label: 'Other' },
   { value: 'prefer_not_to_say', label: 'Prefer not to say' },
 ];
@@ -302,6 +317,29 @@ export default function ProfileScreen() {
                 ]}
               >
                 {gender.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.inputLabel}>Ethnicity</Text>
+        <View style={styles.genderOptions}>
+          {ETHNICITIES.map((ethnicity) => (
+            <TouchableOpacity
+              key={ethnicity.value}
+              style={[
+                styles.genderOption,
+                profile.ethnicity === ethnicity.value && styles.genderOptionSelected,
+              ]}
+              onPress={() => updateProfile('ethnicity', ethnicity.value)}
+            >
+              <Text
+                style={[
+                  styles.genderOptionText,
+                  profile.ethnicity === ethnicity.value && styles.genderOptionTextSelected,
+                ]}
+              >
+                {ethnicity.label}
               </Text>
             </TouchableOpacity>
           ))}

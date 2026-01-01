@@ -282,6 +282,7 @@ class UserProfile(Base):
     medical_history = Column(Text)
     skin_type = Column(String)  # Fitzpatrick skin type
     family_history = Column(Text)
+    ethnicity = Column(String)  # For demographic and risk assessment
 
     # Location information (for dermatologist matching)
     city = Column(String, index=True)

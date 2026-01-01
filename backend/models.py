@@ -78,6 +78,7 @@ class UserProfileBase(BaseModel):
     medical_history: Optional[str] = None
     skin_type: Optional[str] = None
     family_history: Optional[str] = None
+    ethnicity: Optional[str] = None
     notification_preferences: Optional[Dict[str, Any]] = None
     privacy_settings: Optional[Dict[str, Any]] = None
 
