@@ -252,8 +252,11 @@ export default function GeneticTestingScreen() {
     setShowVariantsModal(true);
   };
 
-  const getRiskLevelColor = (level: string) => {
-    switch (level?.toLowerCase()) {
+  const getRiskLevelColor = (level: string | undefined | null) => {
+    if (!level || typeof level !== 'string') {
+      return '#6b7280';
+    }
+    switch (level.toLowerCase()) {
       case 'very_high':
       case 'high':
         return '#dc2626';
