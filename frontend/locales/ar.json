@@ -11,7 +11,7 @@
     "password": "كلمة المرور",
     "confirmPassword": "تأكيد كلمة المرور",
     "fullName": "الاسم الكامل (اختياري)",
-    "email": "البريد الإلكتروني (اختياري)",
+    "email": "البريد الإلكتروني",
     "forgotPassword": "نسيت كلمة المرور؟",
     "createAccount": "إنشاء حساب",
     "alreadyHaveAccount": "هل لديك حساب بالفعل؟",

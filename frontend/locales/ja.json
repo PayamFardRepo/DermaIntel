@@ -11,7 +11,7 @@
     "password": "パスワード",
     "confirmPassword": "パスワード確認",
     "fullName": "氏名(任意)",
-    "email": "メールアドレス(任意)",
+    "email": "メールアドレス",
     "forgotPassword": "パスワードをお忘れですか?",
     "createAccount": "アカウント作成",
     "alreadyHaveAccount": "既にアカウントをお持ちですか?",

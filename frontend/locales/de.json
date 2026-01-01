@@ -11,7 +11,7 @@
     "password": "Passwort",
     "confirmPassword": "Passwort bestätigen",
     "fullName": "Vollständiger Name (Optional)",
-    "email": "E-Mail (Optional)",
+    "email": "E-Mail",
     "forgotPassword": "Passwort vergessen?",
     "createAccount": "Konto erstellen",
     "alreadyHaveAccount": "Haben Sie bereits ein Konto?",

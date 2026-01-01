@@ -11,7 +11,7 @@
     "password": "密码",
     "confirmPassword": "确认密码",
     "fullName": "全名(可选)",
-    "email": "电子邮件(可选)",
+    "email": "电子邮件",
     "forgotPassword": "忘记密码?",
     "createAccount": "创建账户",
     "alreadyHaveAccount": "已有账户?",
