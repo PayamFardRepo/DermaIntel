@@ -1986,6 +1986,7 @@ def calculate_family_history_risk(family_members: list, user_age: int = 50) -> d
     total_melanomas = 0
     early_onset_cases = 0  # Diagnosed < 40
     multiple_primary_cases = 0  # Individual with 2+ melanomas
+    deceased_from_melanoma = 0  # Family members who died from melanoma
     bilateral_lineage = {"maternal": False, "paternal": False}
 
     for member in family_members:
@@ -2008,8 +2009,14 @@ def calculate_family_history_risk(family_members: list, user_age: int = 50) -> d
             if member.melanoma_count and member.melanoma_count >= 2:
                 multiple_primary_cases += 1
 
-            if member.earliest_diagnosis_age and member.earliest_diagnosis_age < 40:
+            # Check for early onset using both fields
+            diagnosis_age = member.melanoma_age_at_diagnosis or member.earliest_diagnosis_age
+            if diagnosis_age and diagnosis_age < 40:
                 early_onset_cases += 1
+
+            # Track deceased outcome (indicates aggressive disease)
+            if member.melanoma_outcome == "deceased":
+                deceased_from_melanoma += 1
 
         # Track bilateral inheritance
         if side == "maternal":
@@ -2036,6 +2043,10 @@ def calculate_family_history_risk(family_members: list, user_age: int = 50) -> d
     # Multiple primary melanomas indicator (+30% per case)
     if multiple_primary_cases > 0:
         risk_multiplier *= (1.0 + 0.3 * min(multiple_primary_cases, 3))
+
+    # Deceased from melanoma indicator (+25% per case - indicates aggressive disease phenotype)
+    if deceased_from_melanoma > 0:
+        risk_multiplier *= (1.0 + 0.25 * min(deceased_from_melanoma, 3))
 
     # Bilateral inheritance (both sides affected) +50%
     if bilateral_lineage["maternal"] and bilateral_lineage["paternal"]:
@@ -2080,6 +2091,7 @@ def calculate_family_history_risk(family_members: list, user_age: int = 50) -> d
         "total_melanomas_in_family": total_melanomas,
         "early_onset_cases": early_onset_cases,
         "multiple_primary_cases": multiple_primary_cases,
+        "deceased_from_melanoma": deceased_from_melanoma,
         "inheritance_pattern": inheritance_pattern,
         "bilateral_inheritance": bilateral_lineage["maternal"] and bilateral_lineage["paternal"],
         "familial_melanoma_syndrome_suspected": familial_syndrome_suspected,
