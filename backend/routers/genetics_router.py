@@ -805,7 +805,7 @@ async def get_genetic_test_results(
 
     return {
         "total": len(results),
-        "results": [
+        "test_results": [
             {
                 "id": r.id,
                 "test_id": r.test_id,
@@ -814,11 +814,13 @@ async def get_genetic_test_results(
                 "lab_name": r.lab_name,
                 "test_date": r.test_date.isoformat() if r.test_date else None,
                 "status": r.status,
-                "overall_risk_level": r.overall_risk_level,
-                "pathogenic_variants": r.pathogenic_variants_found,
-                "likely_pathogenic_variants": r.likely_pathogenic_found,
-                "melanoma_risk": r.melanoma_risk,
-                "bcc_risk": r.bcc_risk,
+                "total_variants_analyzed": r.total_variants_tested or 0,
+                "pathogenic_variants": r.pathogenic_variants_found or 0,
+                "likely_pathogenic_variants": r.likely_pathogenic_found or 0,
+                "vus_variants": r.vus_found or 0,
+                "melanoma_risk_level": r.melanoma_risk or r.overall_risk_level,
+                "nmsc_risk_level": r.bcc_risk or "average",
+                "screening_recommendations": r.screening_recommendations or [],
                 "created_at": r.created_at.isoformat(),
             }
             for r in results
