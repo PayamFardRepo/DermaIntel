@@ -25,6 +25,7 @@ const SKIN_TYPE_VALUES = ['I', 'II', 'III', 'IV', 'V', 'VI'];
 const HAIR_COLOR_VALUES = ['blonde', 'red', 'brown', 'black', 'gray', 'other'];
 const EYE_COLOR_VALUES = ['blue', 'green', 'hazel', 'brown', 'gray', 'other'];
 const GENDER_VALUES = ['male', 'female', 'other'];
+const MELANOMA_OUTCOME_VALUES = ['survived', 'deceased', 'unknown'];
 
 export default function AddFamilyMemberScreen() {
   const { t } = useTranslation();
@@ -45,6 +46,8 @@ export default function AddFamilyMemberScreen() {
   const [hasSkinCancer, setHasSkinCancer] = useState(false);
   const [hasMelanoma, setHasMelanoma] = useState(false);
   const [melanomaCount, setMelanomaCount] = useState('0');
+  const [melanomaAgeAtDiagnosis, setMelanomaAgeAtDiagnosis] = useState('');
+  const [melanomaOutcome, setMelanomaOutcome] = useState('');
   const [skinCancerDetails, setSkinCancerDetails] = useState('');
 
   // Physical Characteristics
@@ -105,7 +108,11 @@ export default function AddFamilyMemberScreen() {
         formData.append('skin_cancer_types', JSON.stringify(skinCancerTypes));
       }
       formData.append('has_melanoma', hasMelanoma.toString());
-      if (hasMelanoma) formData.append('melanoma_count', melanomaCount);
+      if (hasMelanoma) {
+        formData.append('melanoma_count', melanomaCount);
+        if (melanomaAgeAtDiagnosis) formData.append('melanoma_age_at_diagnosis', melanomaAgeAtDiagnosis);
+        if (melanomaOutcome) formData.append('melanoma_outcome', melanomaOutcome);
+      }
       if (skinType) formData.append('skin_type', skinType);
       if (hairColor) formData.append('hair_color', hairColor);
       if (eyeColor) formData.append('eye_color', eyeColor);
@@ -297,17 +304,41 @@ export default function AddFamilyMemberScreen() {
                 </View>
 
                 {hasMelanoma && (
-                  <View style={styles.fieldContainer}>
-                    <Text style={styles.fieldLabel}>{t('addFamilyMember.numberOfMelanomas')}</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={melanomaCount}
-                      onChangeText={setMelanomaCount}
-                      placeholder={t('addFamilyMember.numberOfMelanomasPlaceholder')}
-                      placeholderTextColor="#9ca3af"
-                      keyboardType="numeric"
-                    />
-                  </View>
+                  <>
+                    <View style={styles.fieldContainer}>
+                      <Text style={styles.fieldLabel}>{t('addFamilyMember.numberOfMelanomas')}</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={melanomaCount}
+                        onChangeText={setMelanomaCount}
+                        placeholder={t('addFamilyMember.numberOfMelanomasPlaceholder')}
+                        placeholderTextColor="#9ca3af"
+                        keyboardType="numeric"
+                      />
+                    </View>
+
+                    <View style={styles.fieldContainer}>
+                      <Text style={styles.fieldLabel}>Age at Diagnosis</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={melanomaAgeAtDiagnosis}
+                        onChangeText={setMelanomaAgeAtDiagnosis}
+                        placeholder="Age when melanoma was diagnosed"
+                        placeholderTextColor="#9ca3af"
+                        keyboardType="numeric"
+                      />
+                    </View>
+
+                    {renderSelector(
+                      'Outcome',
+                      melanomaOutcome,
+                      MELANOMA_OUTCOME_VALUES.map(v => ({
+                        label: v === 'survived' ? 'Survived' : v === 'deceased' ? 'Deceased' : 'Unknown',
+                        value: v
+                      })),
+                      setMelanomaOutcome
+                    )}
+                  </>
                 )}
 
                 <View style={styles.fieldContainer}>

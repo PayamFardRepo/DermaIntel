@@ -1094,6 +1094,8 @@ async def _create_family_member(
     skin_cancer_types: Optional[str],
     has_melanoma: str,
     melanoma_count: Optional[str],
+    melanoma_age_at_diagnosis: Optional[str],
+    melanoma_outcome: Optional[str],
     skin_type: Optional[str],
     hair_color: Optional[str],
     eye_color: Optional[str],
@@ -1147,6 +1149,8 @@ async def _create_family_member(
         skin_cancer_types=skin_cancer_types_parsed,
         has_melanoma=parse_bool(has_melanoma),
         melanoma_count=parse_int(melanoma_count) or 0,
+        melanoma_age_at_diagnosis=parse_int(melanoma_age_at_diagnosis),
+        melanoma_outcome=melanoma_outcome,
         skin_type=skin_type,
         hair_color=hair_color,
         eye_color=eye_color,
@@ -1185,6 +1189,8 @@ async def add_family_member(
     skin_cancer_types: Optional[str] = Form(None),
     has_melanoma: str = Form("false"),
     melanoma_count: Optional[str] = Form(None),
+    melanoma_age_at_diagnosis: Optional[str] = Form(None),
+    melanoma_outcome: Optional[str] = Form(None),
     skin_type: Optional[str] = Form(None),
     hair_color: Optional[str] = Form(None),
     eye_color: Optional[str] = Form(None),
@@ -1199,7 +1205,8 @@ async def add_family_member(
     return await _create_family_member(
         relationship_type, relationship_side, name, gender, year_of_birth,
         is_alive, age_at_death, has_skin_cancer, skin_cancer_types,
-        has_melanoma, melanoma_count, skin_type, hair_color, eye_color,
+        has_melanoma, melanoma_count, melanoma_age_at_diagnosis, melanoma_outcome,
+        skin_type, hair_color, eye_color,
         has_many_moles, has_atypical_moles, genetic_testing_done, notes,
         current_user, db
     )
@@ -1218,6 +1225,8 @@ async def add_family_member_alt(
     skin_cancer_types: Optional[str] = Form(None),
     has_melanoma: str = Form("false"),
     melanoma_count: Optional[str] = Form(None),
+    melanoma_age_at_diagnosis: Optional[str] = Form(None),
+    melanoma_outcome: Optional[str] = Form(None),
     skin_type: Optional[str] = Form(None),
     hair_color: Optional[str] = Form(None),
     eye_color: Optional[str] = Form(None),
@@ -1232,7 +1241,8 @@ async def add_family_member_alt(
     return await _create_family_member(
         relationship_type, relationship_side, name, gender, year_of_birth,
         is_alive, age_at_death, has_skin_cancer, skin_cancer_types,
-        has_melanoma, melanoma_count, skin_type, hair_color, eye_color,
+        has_melanoma, melanoma_count, melanoma_age_at_diagnosis, melanoma_outcome,
+        skin_type, hair_color, eye_color,
         has_many_moles, has_atypical_moles, genetic_testing_done, notes,
         current_user, db
     )

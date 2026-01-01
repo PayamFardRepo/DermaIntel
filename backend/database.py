@@ -553,6 +553,8 @@ class FamilyMember(Base):
     # Melanoma-specific (higher hereditary risk)
     has_melanoma = Column(Boolean, default=False)
     melanoma_count = Column(Integer, default=0)
+    melanoma_age_at_diagnosis = Column(Integer)  # Age when first melanoma was diagnosed
+    melanoma_outcome = Column(String)  # "survived", "deceased", "unknown"
     melanoma_subtypes = Column(JSON)  # Array of melanoma subtypes if known
     melanoma_familial_syndrome = Column(Boolean, default=False)  # Part of familial melanoma syndrome
 
