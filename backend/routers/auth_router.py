@@ -99,10 +99,11 @@ def read_users_me(current_user: User = Depends(get_current_active_user)):
 def update_user_settings(
     display_mode: Optional[str] = None,
     account_type: Optional[str] = None,
+    full_name: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Update user display mode and account type settings."""
+    """Update user display mode, account type, and full name settings."""
     updated = False
 
     if display_mode:
@@ -119,6 +120,10 @@ def update_user_settings(
         else:
             raise HTTPException(status_code=400, detail="Invalid account_type. Must be 'personal' or 'professional'")
 
+    if full_name is not None:
+        current_user.full_name = full_name.strip() if full_name.strip() else None
+        updated = True
+
     if updated:
         db.commit()
         db.refresh(current_user)
@@ -127,6 +132,7 @@ def update_user_settings(
         "id": current_user.id,
         "username": current_user.username,
         "email": current_user.email,
+        "full_name": current_user.full_name,
         "display_mode": current_user.display_mode or "simple",
         "account_type": current_user.account_type or "personal",
         "is_verified_professional": current_user.is_verified_professional or False,

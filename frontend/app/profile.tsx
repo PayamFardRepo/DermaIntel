@@ -97,6 +97,10 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
+  // Full name editing
+  const [fullName, setFullName] = useState<string>('');
+  const [hasFullNameChanges, setHasFullNameChanges] = useState(false);
+
   // Skin type picker modal
   const [showSkinTypePicker, setShowSkinTypePicker] = useState(false);
 
@@ -117,6 +121,7 @@ export default function ProfileScreen() {
         const data = await response.json();
         setUserInfo(data);
         setProfile(data.profile || {});
+        setFullName(data.full_name || '');
       }
     } catch (error) {
       console.error('Error fetching user info:', error);
@@ -135,6 +140,11 @@ export default function ProfileScreen() {
   const updateProfile = (field: keyof UserProfile, value: any) => {
     setProfile(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
+  };
+
+  const updateFullName = (value: string) => {
+    setFullName(value);
+    setHasFullNameChanges(value !== (userInfo?.full_name || ''));
   };
 
   const updateNotificationPreferences = (field: keyof NotificationPreferences, value: boolean) => {
@@ -163,23 +173,47 @@ export default function ProfileScreen() {
     setSaving(true);
     try {
       const token = await SecureStore.getItemAsync('auth_token');
-      const response = await fetch(`${API_BASE_URL}/profile`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(profile),
-      });
 
-      if (response.ok) {
-        Alert.alert('Success', 'Profile updated successfully');
-        setHasChanges(false);
-        fetchUserInfo();
-      } else {
-        const error = await response.json();
-        Alert.alert('Error', error.detail || 'Failed to update profile');
+      // Save full name if changed
+      if (hasFullNameChanges) {
+        const settingsResponse = await fetch(`${API_BASE_URL}/me/settings?full_name=${encodeURIComponent(fullName)}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!settingsResponse.ok) {
+          const error = await settingsResponse.json();
+          Alert.alert('Error', error.detail || 'Failed to update full name');
+          setSaving(false);
+          return;
+        }
       }
+
+      // Save profile data if changed
+      if (hasChanges) {
+        const response = await fetch(`${API_BASE_URL}/profile`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(profile),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          Alert.alert('Error', error.detail || 'Failed to update profile');
+          setSaving(false);
+          return;
+        }
+      }
+
+      Alert.alert('Success', 'Profile updated successfully');
+      setHasChanges(false);
+      setHasFullNameChanges(false);
+      fetchUserInfo();
     } catch (error) {
       console.error('Error saving profile:', error);
       Alert.alert('Error', 'Failed to save profile');
@@ -221,7 +255,13 @@ export default function ProfileScreen() {
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Full Name</Text>
-          <Text style={styles.infoValue}>{userInfo?.full_name || 'Not set'}</Text>
+          <TextInput
+            style={[styles.infoValue, styles.editableInput]}
+            value={fullName}
+            onChangeText={updateFullName}
+            placeholder="Enter your full name"
+            placeholderTextColor="#999"
+          />
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Member Since</Text>
@@ -686,7 +726,7 @@ export default function ProfileScreen() {
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Profile</Text>
-        {hasChanges ? (
+        {(hasChanges || hasFullNameChanges) ? (
           <TouchableOpacity onPress={handleSaveProfile} style={styles.saveButton} disabled={saving}>
             {saving ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -902,6 +942,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     fontWeight: '500',
+  },
+  editableInput: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 150,
+    textAlign: 'right',
   },
   inputLabel: {
     fontSize: 13,
