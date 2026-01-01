@@ -247,9 +247,24 @@ export default function GeneticTestingScreen() {
 
   const viewTestVariants = async (test: GeneticTestResult) => {
     setSelectedTest(test);
-    // In a real implementation, fetch variants for this test
-    // For now, we'll show a placeholder
     setShowVariantsModal(true);
+
+    // Fetch detailed test info including variants
+    try {
+      const token = AuthService.getToken();
+      const response = await fetch(`${API_BASE_URL}/genetics/test-results/${test.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setTestVariants(data.variants || []);
+      }
+    } catch (error) {
+      console.error('Error fetching variants:', error);
+    }
   };
 
   const getRiskLevelColor = (level: string | undefined | null) => {
@@ -696,6 +711,88 @@ export default function GeneticTestingScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Variants Modal */}
+      <Modal
+        visible={showVariantsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowVariantsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {selectedTest?.test_id || 'Test Details'}
+              </Text>
+              <Pressable onPress={() => setShowVariantsModal(false)}>
+                <Ionicons name="close" size={24} color="#6b7280" />
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {testVariants.length === 0 ? (
+                <View style={styles.emptyVariants}>
+                  <Ionicons name="flask-outline" size={48} color="#d1d5db" />
+                  <Text style={styles.emptyVariantsText}>No variants found</Text>
+                  <Text style={styles.emptyVariantsSubtext}>
+                    No dermatology-relevant variants were detected in this test.
+                  </Text>
+                </View>
+              ) : (
+                testVariants.map((variant, index) => (
+                  <View key={`variant-${index}-${variant.id}`} style={styles.variantCard}>
+                    <View style={styles.variantRow}>
+                      <Text style={styles.variantLabel}>Gene:</Text>
+                      <Text style={styles.variantValue}>{variant.gene_symbol}</Text>
+                    </View>
+                    <View style={styles.variantRow}>
+                      <Text style={styles.variantLabel}>Variant:</Text>
+                      <Text style={styles.variantValue}>
+                        {variant.rsid || variant.hgvs_p || `${variant.reference}>${variant.alternate}`}
+                      </Text>
+                    </View>
+                    <View style={styles.variantRow}>
+                      <Text style={styles.variantLabel}>Classification:</Text>
+                      <Text style={[
+                        styles.variantValue,
+                        styles.classificationBadge,
+                        variant.acmg_classification === 'pathogenic' && styles.pathogenicBadge,
+                        variant.acmg_classification === 'likely_pathogenic' && styles.likelyPathogenicBadge,
+                        variant.acmg_classification === 'vus' && styles.vusBadge,
+                      ]}>
+                        {(variant.acmg_classification || 'Unknown').replace('_', ' ').toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.variantRow}>
+                      <Text style={styles.variantLabel}>Impact:</Text>
+                      <Text style={styles.variantValue}>
+                        {variant.clinical_significance ||
+                         (variant.associated_conditions && variant.associated_conditions.length > 0
+                           ? variant.associated_conditions.join(', ')
+                           : 'Unknown')}
+                      </Text>
+                    </View>
+                    {variant.zygosity && (
+                      <View style={styles.variantRow}>
+                        <Text style={styles.variantLabel}>Zygosity:</Text>
+                        <Text style={styles.variantValue}>{variant.zygosity}</Text>
+                      </View>
+                    )}
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            <Pressable
+              style={styles.modalCloseButton}
+              onPress={() => setShowVariantsModal(false)}
+            >
+              <Text style={styles.modalCloseButtonText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1276,6 +1373,97 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   riskCalculatorButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  modalBody: {
+    padding: 16,
+    maxHeight: 400,
+  },
+  emptyVariants: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyVariantsText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginTop: 12,
+  },
+  emptyVariantsSubtext: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginTop: 8,
+    paddingHorizontal: 20,
+  },
+  variantCard: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  variantRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  variantLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6b7280',
+    width: 100,
+  },
+  variantValue: {
+    fontSize: 14,
+    color: '#1f2937',
+    flex: 1,
+    textAlign: 'right',
+  },
+  classificationBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  modalCloseButton: {
+    backgroundColor: '#8b5cf6',
+    marginHorizontal: 16,
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalCloseButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
