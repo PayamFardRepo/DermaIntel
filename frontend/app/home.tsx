@@ -63,7 +63,7 @@ export default function PhotoScreen() {
 
   // Menu category expansion state
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set(['Patient Monitoring']) // Default expanded category
+    new Set(['Health Profile']) // Default expanded category
   );
 
   const toggleCategory = (category: string) => {
@@ -2554,7 +2554,66 @@ export default function PhotoScreen() {
             </View>
 
             <ScrollView style={styles.menuContent}>
-              {/* 1. Patient Monitoring */}
+              {/* 1. Health Profile */}
+              <MenuCategory title="Health Profile" icon="👤" count={5}>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/profile' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>👤</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Profile</Text>
+                    <Text style={styles.menuItemSubtext}>Age, skin type, medical history</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/family-history' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🧬</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>{t('homeScreen.navigation.familyHistory')}</Text>
+                    <Text style={styles.menuItemSubtext}>{t('history.menu.familyHistory.subtitle')}</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/genetic-testing' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🧪</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Genetic Testing</Text>
+                    <Text style={styles.menuItemSubtext}>Upload VCF files & view genetic risk</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/lab-results' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🔬</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Lab Results</Text>
+                    <Text style={styles.menuItemSubtext}>Blood, urine & stool analysis</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/ingredient-scanner' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🧴</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Ingredient Scanner</Text>
+                    <Text style={styles.menuItemSubtext}>Check product safety for your skin</Text>
+                  </View>
+                </Pressable>
+              </MenuCategory>
+
+              {/* 2. Patient Monitoring */}
               <MenuCategory title="Patient Monitoring" icon="🔍" count={8}>
                 <Pressable
                   style={styles.menuItemCompact}
@@ -2642,65 +2701,6 @@ export default function PhotoScreen() {
                   <View style={styles.menuItemTextContainer}>
                     <Text style={styles.menuItemText}>{t('homeScreen.navigation.history')}</Text>
                     <Text style={styles.menuItemSubtext}>{t('homeScreen.userGuide.features.history')}</Text>
-                  </View>
-                </Pressable>
-              </MenuCategory>
-
-              {/* 2. Health Profile */}
-              <MenuCategory title="Health Profile" icon="👤" count={5}>
-                <Pressable
-                  style={styles.menuItemCompact}
-                  onPress={() => { setShowMenu(false); router.push('/profile' as any); }}
-                  disabled={isLoading || isClassifying}
-                >
-                  <Text style={styles.menuItemIconSmall}>👤</Text>
-                  <View style={styles.menuItemTextContainer}>
-                    <Text style={styles.menuItemText}>Profile</Text>
-                    <Text style={styles.menuItemSubtext}>Age, skin type, medical history</Text>
-                  </View>
-                </Pressable>
-                <Pressable
-                  style={styles.menuItemCompact}
-                  onPress={() => { setShowMenu(false); router.push('/family-history' as any); }}
-                  disabled={isLoading || isClassifying}
-                >
-                  <Text style={styles.menuItemIconSmall}>🧬</Text>
-                  <View style={styles.menuItemTextContainer}>
-                    <Text style={styles.menuItemText}>{t('homeScreen.navigation.familyHistory')}</Text>
-                    <Text style={styles.menuItemSubtext}>{t('history.menu.familyHistory.subtitle')}</Text>
-                  </View>
-                </Pressable>
-                <Pressable
-                  style={styles.menuItemCompact}
-                  onPress={() => { setShowMenu(false); router.push('/genetic-testing' as any); }}
-                  disabled={isLoading || isClassifying}
-                >
-                  <Text style={styles.menuItemIconSmall}>🧪</Text>
-                  <View style={styles.menuItemTextContainer}>
-                    <Text style={styles.menuItemText}>Genetic Testing</Text>
-                    <Text style={styles.menuItemSubtext}>Upload VCF files & view genetic risk</Text>
-                  </View>
-                </Pressable>
-                <Pressable
-                  style={styles.menuItemCompact}
-                  onPress={() => { setShowMenu(false); router.push('/lab-results' as any); }}
-                  disabled={isLoading || isClassifying}
-                >
-                  <Text style={styles.menuItemIconSmall}>🔬</Text>
-                  <View style={styles.menuItemTextContainer}>
-                    <Text style={styles.menuItemText}>Lab Results</Text>
-                    <Text style={styles.menuItemSubtext}>Blood, urine & stool analysis</Text>
-                  </View>
-                </Pressable>
-                <Pressable
-                  style={styles.menuItemCompact}
-                  onPress={() => { setShowMenu(false); router.push('/ingredient-scanner' as any); }}
-                  disabled={isLoading || isClassifying}
-                >
-                  <Text style={styles.menuItemIconSmall}>🧴</Text>
-                  <View style={styles.menuItemTextContainer}>
-                    <Text style={styles.menuItemText}>Ingredient Scanner</Text>
-                    <Text style={styles.menuItemSubtext}>Check product safety for your skin</Text>
                   </View>
                 </Pressable>
               </MenuCategory>
