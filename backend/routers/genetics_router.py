@@ -1263,6 +1263,8 @@ async def update_family_member(
     earliest_diagnosis_age: Optional[int] = Form(None),
     has_melanoma: Optional[bool] = Form(None),
     melanoma_count: Optional[int] = Form(None),
+    melanoma_age_at_diagnosis: Optional[int] = Form(None),
+    melanoma_outcome: Optional[str] = Form(None),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -1302,6 +1304,10 @@ async def update_family_member(
         member.has_melanoma = has_melanoma
     if melanoma_count is not None:
         member.melanoma_count = melanoma_count
+    if melanoma_age_at_diagnosis is not None:
+        member.melanoma_age_at_diagnosis = melanoma_age_at_diagnosis
+    if melanoma_outcome is not None:
+        member.melanoma_outcome = melanoma_outcome
 
     db.commit()
     db.refresh(member)

@@ -44,6 +44,7 @@ const SKIN_TYPES = [
 
 const HAIR_COLORS = ['blonde', 'red', 'brown', 'black', 'gray', 'other'];
 const EYE_COLORS = ['blue', 'green', 'hazel', 'brown', 'gray', 'other'];
+const MELANOMA_OUTCOME_VALUES = ['survived', 'deceased', 'unknown'];
 
 export default function EditFamilyMemberScreen() {
   const { isAuthenticated, logout } = useAuth();
@@ -67,6 +68,8 @@ export default function EditFamilyMemberScreen() {
   const [hasSkinCancer, setHasSkinCancer] = useState(false);
   const [hasMelanoma, setHasMelanoma] = useState(false);
   const [melanomaCount, setMelanomaCount] = useState('0');
+  const [melanomaAgeAtDiagnosis, setMelanomaAgeAtDiagnosis] = useState('');
+  const [melanomaOutcome, setMelanomaOutcome] = useState('');
   const [skinCancerDetails, setSkinCancerDetails] = useState('');
 
   // Physical Characteristics
@@ -111,6 +114,8 @@ export default function EditFamilyMemberScreen() {
           setHasSkinCancer(member.has_skin_cancer);
           setHasMelanoma(member.has_melanoma);
           setMelanomaCount(member.melanoma_count?.toString() || '0');
+          setMelanomaAgeAtDiagnosis(member.melanoma_age_at_diagnosis?.toString() || '');
+          setMelanomaOutcome(member.melanoma_outcome || '');
 
           // Convert skin cancer types array to string format
           if (member.skin_cancer_types && Array.isArray(member.skin_cancer_types)) {
@@ -180,7 +185,11 @@ export default function EditFamilyMemberScreen() {
         formData.append('skin_cancer_types', JSON.stringify(skinCancerTypes));
       }
       formData.append('has_melanoma', hasMelanoma.toString());
-      if (hasMelanoma) formData.append('melanoma_count', melanomaCount);
+      if (hasMelanoma) {
+        formData.append('melanoma_count', melanomaCount);
+        if (melanomaAgeAtDiagnosis) formData.append('melanoma_age_at_diagnosis', melanomaAgeAtDiagnosis);
+        if (melanomaOutcome) formData.append('melanoma_outcome', melanomaOutcome);
+      }
       if (skinType) formData.append('skin_type', skinType);
       if (hairColor) formData.append('hair_color', hairColor);
       if (eyeColor) formData.append('eye_color', eyeColor);
@@ -384,17 +393,41 @@ export default function EditFamilyMemberScreen() {
                 </View>
 
                 {hasMelanoma && (
-                  <View style={styles.fieldContainer}>
-                    <Text style={styles.fieldLabel}>Number of Melanomas</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={melanomaCount}
-                      onChangeText={setMelanomaCount}
-                      placeholder="e.g., 1"
-                      placeholderTextColor="#9ca3af"
-                      keyboardType="numeric"
-                    />
-                  </View>
+                  <>
+                    <View style={styles.fieldContainer}>
+                      <Text style={styles.fieldLabel}>Number of Melanomas</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={melanomaCount}
+                        onChangeText={setMelanomaCount}
+                        placeholder="e.g., 1"
+                        placeholderTextColor="#9ca3af"
+                        keyboardType="numeric"
+                      />
+                    </View>
+
+                    <View style={styles.fieldContainer}>
+                      <Text style={styles.fieldLabel}>Age at Diagnosis</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={melanomaAgeAtDiagnosis}
+                        onChangeText={setMelanomaAgeAtDiagnosis}
+                        placeholder="Age when melanoma was diagnosed"
+                        placeholderTextColor="#9ca3af"
+                        keyboardType="numeric"
+                      />
+                    </View>
+
+                    {renderSelector(
+                      'Outcome',
+                      melanomaOutcome,
+                      MELANOMA_OUTCOME_VALUES.map(v => ({
+                        label: v === 'survived' ? 'Survived' : v === 'deceased' ? 'Deceased' : 'Unknown',
+                        value: v
+                      })),
+                      setMelanomaOutcome
+                    )}
+                  </>
                 )}
 
                 <View style={styles.fieldContainer}>
