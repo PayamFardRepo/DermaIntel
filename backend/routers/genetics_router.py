@@ -818,7 +818,7 @@ async def get_genetic_test_results(
                 "pathogenic_variants": r.pathogenic_variants_found or 0,
                 "likely_pathogenic_variants": r.likely_pathogenic_found or 0,
                 "vus_variants": r.vus_found or 0,
-                "melanoma_risk_level": r.melanoma_risk or r.overall_risk_level,
+                "melanoma_risk_level": r.melanoma_risk or r.overall_risk_level or "average",
                 "nmsc_risk_level": r.bcc_risk or "average",
                 "screening_recommendations": r.screening_recommendations or [],
                 "created_at": r.created_at.isoformat(),
