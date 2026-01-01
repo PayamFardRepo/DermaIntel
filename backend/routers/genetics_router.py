@@ -1071,8 +1071,16 @@ async def get_family_history(
                 "earliest_diagnosis_age": member.earliest_diagnosis_age,
                 "has_melanoma": member.has_melanoma,
                 "melanoma_count": member.melanoma_count,
+                "melanoma_age_at_diagnosis": member.melanoma_age_at_diagnosis,
+                "melanoma_outcome": member.melanoma_outcome,
                 "melanoma_subtypes": member.melanoma_subtypes,
-                "melanoma_familial_syndrome": member.melanoma_familial_syndrome
+                "melanoma_familial_syndrome": member.melanoma_familial_syndrome,
+                "skin_type": member.skin_type,
+                "hair_color": member.hair_color,
+                "eye_color": member.eye_color,
+                "has_many_moles": member.has_many_moles,
+                "has_atypical_moles": member.has_atypical_moles,
+                "notes": member.notes
             }
             for member in family_members
         ],
