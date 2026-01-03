@@ -1538,6 +1538,9 @@ class DermatologistProfile(Base):
     is_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
 
+    # Link to user account (if dermatologist has login)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
