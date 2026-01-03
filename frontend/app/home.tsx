@@ -3079,7 +3079,21 @@ export default function PhotoScreen() {
               {!(user?.role === 'ops_staff' || user?.role === 'operations') && (
               <>
               {/* 3. Consult & Diagnosis */}
-              <MenuCategory title="Consult & Diagnosis" icon="👨‍⚕️" count={6}>
+              <MenuCategory title="Consult & Diagnosis" icon="👨‍⚕️" count={user?.role === 'dermatologist' ? 7 : 6}>
+                {/* My Consultations - Only visible to dermatologists */}
+                {user?.role === 'dermatologist' && (
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/derm-dashboard' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>📋</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>My Consultations</Text>
+                    <Text style={styles.menuItemSubtext}>View and manage your assigned patients</Text>
+                  </View>
+                </Pressable>
+                )}
                 <Pressable
                   style={styles.menuItemCompact}
                   onPress={() => { setShowMenu(false); router.push('/ai-consultation' as any); }}
