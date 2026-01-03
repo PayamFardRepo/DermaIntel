@@ -862,7 +862,7 @@ async def get_dermatologist_consultations(
                 "duration_minutes": c.duration_minutes,
                 "status": c.status,
                 "video_platform": c.video_platform,
-                "meeting_link": c.meeting_link,
+                "meeting_link": c.video_meeting_url,
                 "created_at": c.created_at.isoformat() if c.created_at else None
             })
 
@@ -953,8 +953,8 @@ async def get_dermatologist_consultation_details(
                 "duration_minutes": consultation.duration_minutes,
                 "status": consultation.status,
                 "video_platform": consultation.video_platform,
-                "meeting_link": consultation.meeting_link,
-                "video_platform_url": consultation.video_platform_url,
+                "meeting_link": consultation.video_meeting_url,
+                "meeting_id": consultation.video_meeting_id,
                 "created_at": consultation.created_at.isoformat() if consultation.created_at else None
             },
             "patient": {
@@ -1003,14 +1003,13 @@ async def start_consultation(
             )
 
         consultation.status = "in_progress"
-        consultation.actual_start_time = datetime.utcnow()
         db.commit()
 
         return {
             "message": "Consultation started",
             "consultation_id": consultation_id,
             "status": "in_progress",
-            "started_at": consultation.actual_start_time.isoformat()
+            "started_at": datetime.utcnow().isoformat()
         }
     except HTTPException:
         raise
@@ -1052,10 +1051,10 @@ async def complete_consultation(
 
         consultation.status = "completed"
         consultation.dermatologist_notes = notes
-        consultation.dermatologist_diagnosis = diagnosis
-        consultation.dermatologist_recommendations = recommendations
+        consultation.diagnosis = diagnosis
+        consultation.treatment_plan = recommendations
         consultation.follow_up_needed = follow_up_needed
-        consultation.actual_end_time = datetime.utcnow()
+        consultation.consultation_completed_at = datetime.utcnow()
         db.commit()
 
         # Create notification for patient
@@ -1078,7 +1077,7 @@ async def complete_consultation(
             "message": "Consultation completed",
             "consultation_id": consultation_id,
             "status": "completed",
-            "completed_at": consultation.actual_end_time.isoformat()
+            "completed_at": consultation.consultation_completed_at.isoformat()
         }
     except HTTPException:
         raise
