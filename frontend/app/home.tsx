@@ -2897,8 +2897,8 @@ export default function PhotoScreen() {
             </View>
 
             <ScrollView style={styles.menuContent}>
-              {/* Hide patient-specific menus for ops roles */}
-              {!(user?.role === 'ops_staff' || user?.role === 'operations') && (
+              {/* Hide Health Profile and Patient Monitoring for ops and dermatologist roles */}
+              {!(user?.role === 'ops_staff' || user?.role === 'operations' || user?.role === 'dermatologist') && (
               <>
               {/* 1. Health Profile */}
               <MenuCategory title="Health Profile" icon="👤" count={5}>
@@ -3072,7 +3072,12 @@ export default function PhotoScreen() {
                   </View>
                 </Pressable>
               </MenuCategory>
+              </>
+              )}
 
+              {/* Hide Consult & Diagnosis and Staging & Prognosis for ops roles only (dermatologists can see these) */}
+              {!(user?.role === 'ops_staff' || user?.role === 'operations') && (
+              <>
               {/* 3. Consult & Diagnosis */}
               <MenuCategory title="Consult & Diagnosis" icon="👨‍⚕️" count={6}>
                 <Pressable
@@ -3201,8 +3206,11 @@ export default function PhotoScreen() {
                   </View>
                 </Pressable>
               </MenuCategory>
+              </>
+              )}
 
-              {/* 5. Treatment */}
+              {/* Hide Treatment for ops and dermatologist roles */}
+              {!(user?.role === 'ops_staff' || user?.role === 'operations' || user?.role === 'dermatologist') && (
               <MenuCategory title="Treatment" icon="💊" count={3}>
                 <Pressable
                   style={styles.menuItemCompact}
@@ -3238,7 +3246,6 @@ export default function PhotoScreen() {
                   </View>
                 </Pressable>
               </MenuCategory>
-              </>
               )}
 
               {/* 6. Billing & Documentation */}
