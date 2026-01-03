@@ -837,13 +837,21 @@ async def get_dermatologist_consultations(
             patient = db.query(User).filter(User.id == c.user_id).first()
             patient_profile = db.query(UserProfile).filter(UserProfile.user_id == c.user_id).first()
 
+            # Calculate age from date_of_birth if available
+            patient_age = None
+            if patient_profile and patient_profile.date_of_birth:
+                from datetime import date
+                today = date.today()
+                dob = patient_profile.date_of_birth
+                patient_age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
             result.append({
                 "id": c.id,
                 "patient": {
                     "id": patient.id if patient else None,
                     "full_name": patient.full_name if patient else "Unknown",
                     "email": patient.email if patient else None,
-                    "age": patient_profile.age if patient_profile else None,
+                    "age": patient_age,
                     "skin_type": patient_profile.skin_type if patient_profile else None
                 },
                 "consultation_type": c.consultation_type,
@@ -911,6 +919,14 @@ async def get_dermatologist_consultation_details(
         patient = db.query(User).filter(User.id == consultation.user_id).first()
         patient_profile = db.query(UserProfile).filter(UserProfile.user_id == consultation.user_id).first()
 
+        # Calculate age from date_of_birth
+        patient_age = None
+        if patient_profile and patient_profile.date_of_birth:
+            from datetime import date
+            today = date.today()
+            dob = patient_profile.date_of_birth
+            patient_age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
         # Get patient's recent analysis history for context
         recent_analyses = db.query(AnalysisHistory).filter(
             AnalysisHistory.user_id == consultation.user_id
@@ -945,12 +961,11 @@ async def get_dermatologist_consultation_details(
                 "id": patient.id if patient else None,
                 "full_name": patient.full_name if patient else "Unknown",
                 "email": patient.email if patient else None,
-                "age": patient_profile.age if patient_profile else None,
+                "age": patient_age,
                 "skin_type": patient_profile.skin_type if patient_profile else None,
-                "skin_concerns": patient_profile.skin_concerns if patient_profile else None,
-                "allergies": patient_profile.allergies if patient_profile else None,
-                "medical_conditions": patient_profile.medical_conditions if patient_profile else None,
-                "current_medications": patient_profile.current_medications if patient_profile else None
+                "medical_history": patient_profile.medical_history if patient_profile else None,
+                "family_history": patient_profile.family_history if patient_profile else None,
+                "ethnicity": patient_profile.ethnicity if patient_profile else None
             },
             "recent_analyses": analyses_summary
         }
