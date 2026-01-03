@@ -111,30 +111,118 @@ export default function RiskCalculatorScreen() {
   const [results, setResults] = useState<RiskAssessment | null>(null);
 
   const [input, setInput] = useState<AssessmentInput>({
-    age: '40',
-    gender: 'male',
-    fitzpatrick_type: 3,
-    natural_hair_color: 'dark_brown',
-    natural_eye_color: 'brown',
-    freckles: 'few',
-    total_mole_count: 'some',
-    sun_exposure_level: 3,
-    childhood_severe_sunburns: '0',
-    childhood_mild_sunburns: '2',
-    adult_severe_sunburns: '0',
-    adult_mild_sunburns: '2',
+    // Demographics - will be populated from profile if available
+    age: '',
+    gender: '',
+    fitzpatrick_type: 0,  // 0 = not selected
+    // Phenotype - user must select these (not in profile)
+    natural_hair_color: '',
+    natural_eye_color: '',
+    freckles: '',
+    total_mole_count: '',
+    // Sun exposure - user must select these (not in profile)
+    sun_exposure_level: 0,  // 0 = not selected
+    childhood_severe_sunburns: '',
+    childhood_mild_sunburns: '',
+    adult_severe_sunburns: '',
+    adult_mild_sunburns: '',
+    // Medical history
     has_family_history: false,
     tanning_bed_use: false,
     outdoor_occupation: false,
     immunosuppressed: false,
     include_ai_findings: true,
   });
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
+  // Load user profile to pre-populate form
+  const loadUserProfile = async () => {
+    try {
+      const token = AuthService.getToken();
+      if (!token) return;
+
+      // Fetch profile and family members in parallel
+      const [profileResponse, familyResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/profile`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch(`${API_BASE_URL}/genetics/family`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ]);
+
+      let hasFamilyHistorySkinCancer = false;
+
+      // Check family members for skin cancer/melanoma history
+      if (familyResponse.ok) {
+        const familyData = await familyResponse.json();
+        const familyMembers = familyData.family_members || [];
+        hasFamilyHistorySkinCancer = familyMembers.some(
+          (member: any) => member.has_skin_cancer || member.has_melanoma
+        );
+      }
+
+      if (profileResponse.ok) {
+        const profile = await profileResponse.json();
+
+        // Calculate age from date_of_birth
+        let calculatedAge = '40';
+        if (profile.date_of_birth) {
+          const birthDate = new Date(profile.date_of_birth);
+          const today = new Date();
+          let age = today.getFullYear() - birthDate.getFullYear();
+          const monthDiff = today.getMonth() - birthDate.getMonth();
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+          }
+          if (age > 0 && age < 120) {
+            calculatedAge = age.toString();
+          }
+        }
+
+        // Map skin_type to fitzpatrick number
+        // Profile stores as Roman numerals: 'I', 'II', 'III', 'IV', 'V', 'VI'
+        let fitzpatrickType = 3;
+        if (profile.skin_type) {
+          const romanToNumber: { [key: string]: number } = {
+            'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6,
+            '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6,
+          };
+          const skinTypeUpper = profile.skin_type.toUpperCase().trim();
+          if (romanToNumber[skinTypeUpper]) {
+            fitzpatrickType = romanToNumber[skinTypeUpper];
+          }
+        }
+
+        // Update input with profile data
+        setInput(prev => ({
+          ...prev,
+          // Demographics
+          age: calculatedAge,
+          gender: profile.gender || prev.gender,
+          fitzpatrick_type: fitzpatrickType,
+          // Phenotype characteristics (only if set in profile)
+          natural_hair_color: profile.natural_hair_color || prev.natural_hair_color,
+          natural_eye_color: profile.natural_eye_color || prev.natural_eye_color,
+          freckles: profile.freckles || prev.freckles,
+          // Family history from profile OR from family members table
+          has_family_history: profile.family_history_skin_cancer || profile.family_history_melanoma || hasFamilyHistorySkinCancer || prev.has_family_history,
+          immunosuppressed: profile.immunosuppressed || prev.immunosuppressed,
+        }));
+
+        setProfileLoaded(true);
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.replace('/');
     } else {
       loadLatestAssessment();
+      loadUserProfile();
     }
   }, [isAuthenticated]);
 
@@ -246,6 +334,53 @@ export default function RiskCalculatorScreen() {
     return '#6b7280';
   };
 
+  // Validation for each step
+  const validateStep = (step: number): { valid: boolean; message: string } => {
+    switch (step) {
+      case 0: // Demographics
+        if (!input.age || parseInt(input.age) <= 0) {
+          return { valid: false, message: 'Please enter your age' };
+        }
+        if (!input.gender) {
+          return { valid: false, message: 'Please select your gender' };
+        }
+        if (input.fitzpatrick_type === 0) {
+          return { valid: false, message: 'Please select your skin type' };
+        }
+        return { valid: true, message: '' };
+      case 1: // Phenotype
+        if (!input.natural_hair_color) {
+          return { valid: false, message: 'Please select your natural hair color' };
+        }
+        if (!input.natural_eye_color) {
+          return { valid: false, message: 'Please select your eye color' };
+        }
+        if (!input.freckles) {
+          return { valid: false, message: 'Please select your freckle level' };
+        }
+        if (!input.total_mole_count) {
+          return { valid: false, message: 'Please select your mole count' };
+        }
+        return { valid: true, message: '' };
+      case 2: // Sun exposure
+        if (input.sun_exposure_level === 0) {
+          return { valid: false, message: 'Please select your sun exposure level' };
+        }
+        return { valid: true, message: '' };
+      default:
+        return { valid: true, message: '' };
+    }
+  };
+
+  const handleNextStep = () => {
+    const validation = validateStep(currentStep);
+    if (!validation.valid) {
+      Alert.alert('Missing Information', validation.message);
+      return;
+    }
+    setCurrentStep(currentStep + 1);
+  };
+
   const renderStepIndicator = () => (
     <View style={styles.stepIndicator}>
       {[0, 1, 2, 3].map((step) => (
@@ -263,6 +398,15 @@ export default function RiskCalculatorScreen() {
   const renderStep0 = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>{t('riskCalculator.basicInfo')}</Text>
+
+      {profileLoaded && (
+        <View style={styles.profileLoadedBanner}>
+          <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+          <Text style={styles.profileLoadedText}>
+            Pre-filled from your profile. You can adjust if needed.
+          </Text>
+        </View>
+      )}
 
       <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>{t('riskCalculator.age')}</Text>
@@ -483,6 +627,15 @@ export default function RiskCalculatorScreen() {
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>{t('riskCalculator.additionalFactors')}</Text>
 
+      {profileLoaded && input.has_family_history && (
+        <View style={styles.profileLoadedBanner}>
+          <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+          <Text style={styles.profileLoadedText}>
+            Family history pre-filled from your profile.
+          </Text>
+        </View>
+      )}
+
       <TouchableOpacity
         style={styles.toggleRow}
         onPress={() => setInput({ ...input, has_family_history: !input.has_family_history })}
@@ -619,15 +772,20 @@ export default function RiskCalculatorScreen() {
             <Text style={styles.riskFactorsTitle}>{t('riskCalculator.identifiedRiskFactors')}</Text>
             {results.risk_factors.map((factor, index) => (
               <View key={index} style={styles.riskFactorItem}>
-                <Ionicons
-                  name={factor.impact === 'high' ? 'warning' : 'information-circle'}
-                  size={20}
-                  color={factor.impact === 'high' ? '#dc2626' : '#f59e0b'}
-                />
+                <View style={[
+                  styles.riskMultiplierBadge,
+                  factor.risk_multiplier >= 5 ? styles.riskMultiplierVeryHigh :
+                  factor.risk_multiplier >= 2 ? styles.riskMultiplierHigh :
+                  styles.riskMultiplierModerate
+                ]}>
+                  <Text style={styles.riskMultiplierBadgeText}>
+                    {factor.risk_multiplier >= 10 ? factor.risk_multiplier.toFixed(0) : factor.risk_multiplier.toFixed(1)}x
+                  </Text>
+                </View>
                 <View style={styles.riskFactorInfo}>
                   <Text style={styles.riskFactorText}>{factor.factor}</Text>
-                  <Text style={styles.riskFactorMultiplier}>
-                    {factor.risk_multiplier}x {t('riskCalculator.riskMultiplier')}
+                  <Text style={styles.riskFactorDescription}>
+                    {factor.description || `${factor.impact} impact on ${factor.category}`}
                   </Text>
                 </View>
               </View>
@@ -789,7 +947,7 @@ export default function RiskCalculatorScreen() {
                 {currentStep < 3 ? (
                   <TouchableOpacity
                     style={styles.nextButton}
-                    onPress={() => setCurrentStep(currentStep + 1)}
+                    onPress={handleNextStep}
                   >
                     <Text style={styles.nextButtonText}>{t('riskCalculator.next')}</Text>
                     <Ionicons name="arrow-forward" size={20} color="white" />
@@ -928,6 +1086,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
     marginBottom: 16,
+  },
+  profileLoadedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ecfdf5',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  profileLoadedText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#065f46',
   },
   inputGroup: {
     marginBottom: 20,
@@ -1278,14 +1450,51 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  riskMultiplierBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  riskMultiplierVeryHigh: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 2,
+    borderColor: '#dc2626',
+  },
+  riskMultiplierHigh: {
+    backgroundColor: '#fffbeb',
+    borderWidth: 2,
+    borderColor: '#f59e0b',
+  },
+  riskMultiplierModerate: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 2,
+    borderColor: '#22c55e',
+  },
+  riskMultiplierBadgeText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1f2937',
   },
   riskFactorInfo: {
     marginLeft: 12,
     flex: 1,
   },
   riskFactorText: {
-    fontSize: 14,
-    color: '#374151',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  riskFactorDescription: {
+    fontSize: 13,
+    color: '#6b7280',
+    lineHeight: 18,
   },
   riskFactorMultiplier: {
     fontSize: 12,

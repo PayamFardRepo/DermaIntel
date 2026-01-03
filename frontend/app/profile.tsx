@@ -30,6 +30,14 @@ interface UserProfile {
   skin_type?: string;
   family_history?: string;
   ethnicity?: string;
+  // Phenotype characteristics for risk assessment
+  natural_hair_color?: string;
+  natural_eye_color?: string;
+  freckles?: string;
+  // Family history
+  family_history_skin_cancer?: boolean;
+  family_history_melanoma?: boolean;
+  // Location
   city?: string;
   state?: string;
   country?: string;
@@ -100,6 +108,28 @@ const ETHNICITIES = [
   { value: 'mixed', label: 'Mixed/Multiple' },
   { value: 'other', label: 'Other' },
   { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+];
+
+const HAIR_COLORS = [
+  { value: 'red', label: 'Red', riskNote: 'Higher risk' },
+  { value: 'blonde', label: 'Blonde', riskNote: 'Higher risk' },
+  { value: 'light_brown', label: 'Light Brown', riskNote: '' },
+  { value: 'dark_brown', label: 'Dark Brown', riskNote: '' },
+  { value: 'black', label: 'Black', riskNote: '' },
+];
+
+const EYE_COLORS = [
+  { value: 'blue', label: 'Blue', riskNote: 'Higher risk' },
+  { value: 'green', label: 'Green', riskNote: 'Higher risk' },
+  { value: 'hazel', label: 'Hazel', riskNote: '' },
+  { value: 'brown', label: 'Brown', riskNote: '' },
+];
+
+const FRECKLE_OPTIONS = [
+  { value: 'none', label: 'None' },
+  { value: 'few', label: 'Few' },
+  { value: 'some', label: 'Some' },
+  { value: 'many', label: 'Many', riskNote: 'Higher risk' },
 ];
 
 export default function ProfileScreen() {
@@ -411,6 +441,120 @@ export default function ProfileScreen() {
         </Text>
       </View>
 
+      {/* Phenotype Characteristics Card */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="body" size={24} color="#667eea" />
+          <Text style={styles.cardTitle}>Physical Characteristics</Text>
+        </View>
+        <Text style={styles.helperText}>
+          These help calculate your skin cancer risk more accurately
+        </Text>
+
+        <Text style={styles.inputLabel}>Natural Hair Color</Text>
+        <View style={styles.optionRow}>
+          {HAIR_COLORS.map((color) => (
+            <TouchableOpacity
+              key={color.value}
+              style={[
+                styles.optionChip,
+                profile.natural_hair_color === color.value && styles.optionChipSelected,
+              ]}
+              onPress={() => updateProfile('natural_hair_color', color.value)}
+            >
+              <Text style={[
+                styles.optionChipText,
+                profile.natural_hair_color === color.value && styles.optionChipTextSelected,
+              ]}>
+                {color.label}
+              </Text>
+              {color.riskNote && profile.natural_hair_color === color.value && (
+                <Text style={styles.riskNoteText}>{color.riskNote}</Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.inputLabel}>Natural Eye Color</Text>
+        <View style={styles.optionRow}>
+          {EYE_COLORS.map((color) => (
+            <TouchableOpacity
+              key={color.value}
+              style={[
+                styles.optionChip,
+                profile.natural_eye_color === color.value && styles.optionChipSelected,
+              ]}
+              onPress={() => updateProfile('natural_eye_color', color.value)}
+            >
+              <Text style={[
+                styles.optionChipText,
+                profile.natural_eye_color === color.value && styles.optionChipTextSelected,
+              ]}>
+                {color.label}
+              </Text>
+              {color.riskNote && profile.natural_eye_color === color.value && (
+                <Text style={styles.riskNoteText}>{color.riskNote}</Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.inputLabel}>Freckles</Text>
+        <View style={styles.optionRow}>
+          {FRECKLE_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[
+                styles.optionChip,
+                profile.freckles === option.value && styles.optionChipSelected,
+              ]}
+              onPress={() => updateProfile('freckles', option.value)}
+            >
+              <Text style={[
+                styles.optionChipText,
+                profile.freckles === option.value && styles.optionChipTextSelected,
+              ]}>
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Family History Card */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="people" size={24} color="#667eea" />
+          <Text style={styles.cardTitle}>Family History of Skin Cancer</Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.toggleRow}
+          onPress={() => updateProfile('family_history_skin_cancer', !profile.family_history_skin_cancer)}
+        >
+          <View style={styles.toggleInfo}>
+            <Text style={styles.toggleLabel}>Family history of skin cancer</Text>
+            <Text style={styles.toggleDescription}>Any first-degree relative (parent, sibling, child)</Text>
+          </View>
+          <View style={[styles.toggle, profile.family_history_skin_cancer && styles.toggleActive]}>
+            <View style={[styles.toggleKnob, profile.family_history_skin_cancer && styles.toggleKnobActive]} />
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.toggleRow}
+          onPress={() => updateProfile('family_history_melanoma', !profile.family_history_melanoma)}
+        >
+          <View style={styles.toggleInfo}>
+            <Text style={styles.toggleLabel}>Family history of melanoma</Text>
+            <Text style={styles.toggleDescription}>Melanoma specifically in the family</Text>
+          </View>
+          <View style={[styles.toggle, profile.family_history_melanoma && styles.toggleActive]}>
+            <View style={[styles.toggleKnob, profile.family_history_melanoma && styles.toggleKnobActive]} />
+          </View>
+        </TouchableOpacity>
+      </View>
+
       {/* Medical History Card */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -428,12 +572,12 @@ export default function ProfileScreen() {
           numberOfLines={4}
         />
 
-        <Text style={styles.inputLabel}>Family History</Text>
+        <Text style={styles.inputLabel}>Additional Family History Notes</Text>
         <TextInput
           style={[styles.textInput, styles.textArea]}
           value={profile.family_history || ''}
           onChangeText={(text) => updateProfile('family_history', text)}
-          placeholder="Any family history of skin cancer or other skin conditions..."
+          placeholder="Any additional family history details..."
           multiline
           numberOfLines={4}
         />
@@ -1077,6 +1221,84 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 8,
     fontStyle: 'italic',
+  },
+  optionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  optionChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  optionChipSelected: {
+    backgroundColor: '#667eea',
+    borderColor: '#667eea',
+  },
+  optionChipText: {
+    fontSize: 13,
+    color: '#333',
+  },
+  optionChipTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  riskNoteText: {
+    fontSize: 10,
+    color: '#fbbf24',
+    marginTop: 2,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  toggleInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+  toggleDescription: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 2,
+  },
+  toggle: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#e0e0e0',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleActive: {
+    backgroundColor: '#667eea',
+  },
+  toggleKnob: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleKnobActive: {
+    alignSelf: 'flex-end',
   },
   actionButton: {
     flexDirection: 'row',

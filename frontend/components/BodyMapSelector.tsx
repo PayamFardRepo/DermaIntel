@@ -27,6 +27,7 @@ interface BodyMapSelectorProps {
     body_sublocation?: string;
     body_side?: string;
     body_map_coordinates?: { x: number; y: number };
+    body_view?: 'front' | 'back'; // Initial view from 3D body map
   };
 }
 
@@ -68,9 +69,81 @@ const BODY_REGIONS = {
   foot_right: { label: 'Right Foot', centerX: 58, centerY: 90, radius: 4 },
 };
 
+// Map 3D body part names to 2D region keys
+const BODY_PART_TO_REGION_MAP: { [key: string]: string[] } = {
+  // Exact matches
+  'head': ['head'],
+  'face': ['face'],
+  'neck': ['neck'],
+  'chest': ['chest'],
+  'abdomen': ['abdomen'],
+  'groin': ['hip_left', 'hip_right'],
+  'back_upper': ['back_upper'],
+  'back_lower': ['back_lower'],
+  // Left side
+  'left_shoulder': ['shoulder_left'],
+  'left_arm': ['arm_left_upper'],
+  'left_forearm': ['arm_left_lower'],
+  'left_hand': ['hand_left'],
+  'left_thigh': ['thigh_left'],
+  'left_knee': ['knee_left'],
+  'left_leg': ['leg_left_lower'],
+  'left_foot': ['foot_left'],
+  // Right side
+  'right_shoulder': ['shoulder_right'],
+  'right_arm': ['arm_right_upper'],
+  'right_forearm': ['arm_right_lower'],
+  'right_hand': ['hand_right'],
+  'right_thigh': ['thigh_right'],
+  'right_knee': ['knee_right'],
+  'right_leg': ['leg_right_lower'],
+  'right_foot': ['foot_right'],
+};
+
+// Regions that only appear in back view
+const BACK_ONLY_REGIONS = ['back_upper', 'back_lower'];
+// Regions that only appear in front view
+const FRONT_ONLY_REGIONS = ['chest', 'abdomen', 'face'];
+
 export default function BodyMapSelector({ onLocationSelect, selectedLocation }: BodyMapSelectorProps) {
-  const [view, setView] = useState<'front' | 'back'>('front');
+  // Initialize view from selectedLocation if provided (for 3D body map integration)
+  const [view, setView] = useState<'front' | 'back'>(
+    selectedLocation?.body_view || 'front'
+  );
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+
+  // Get all locations from 3D body map (supports multiple)
+  const allLocations: string[] = (selectedLocation as any)?.all_locations ||
+    (selectedLocation?.body_location ? [selectedLocation.body_location] : []);
+
+  // Convert 3D body part names to 2D region keys
+  const getMatchingRegions = (locations: string[]): Set<string> => {
+    const regions = new Set<string>();
+    locations.forEach(loc => {
+      // Try exact match first
+      const mapped = BODY_PART_TO_REGION_MAP[loc];
+      if (mapped) {
+        mapped.forEach(r => regions.add(r));
+      } else {
+        // Fallback: try to find partial matches
+        Object.entries(BODY_PART_TO_REGION_MAP).forEach(([key, values]) => {
+          if (loc.includes(key) || key.includes(loc)) {
+            values.forEach(r => regions.add(r));
+          }
+        });
+      }
+    });
+    return regions;
+  };
+
+  const selectedRegions = getMatchingRegions(allLocations);
+
+  // Update view when selectedLocation changes (e.g., coming from 3D body map)
+  React.useEffect(() => {
+    if (selectedLocation?.body_view) {
+      setView(selectedLocation.body_view);
+    }
+  }, [selectedLocation?.body_view]);
 
   const handleMapPress = (regionKey: string, region: typeof BODY_REGIONS[keyof typeof BODY_REGIONS]) => {
     const x = region.centerX;
@@ -107,10 +180,11 @@ export default function BodyMapSelector({ onLocationSelect, selectedLocation }: 
   const renderBodyDiagram = () => {
     const visibleRegions = Object.entries(BODY_REGIONS).filter(([key]) => {
       if (view === 'front') {
-        return !key.includes('back_');
+        // Front view: show everything except back-only regions
+        return !BACK_ONLY_REGIONS.includes(key);
       } else {
-        // For back view, show back-specific regions and exclude front-specific ones
-        return key.includes('back_') || !key.includes('chest') && !key.includes('abdomen') && !key.includes('face');
+        // Back view: show everything except front-only regions
+        return !FRONT_ONLY_REGIONS.includes(key);
       }
     });
 
@@ -138,9 +212,8 @@ export default function BodyMapSelector({ onLocationSelect, selectedLocation }: 
           const cy = (region.centerY / 100) * BODY_MAP_HEIGHT;
           const r = (region.radius / 100) * BODY_MAP_WIDTH;
 
-          const isSelected = selectedRegion === key ||
-            (selectedLocation?.body_map_coordinates?.x === region.centerX &&
-             selectedLocation?.body_map_coordinates?.y === region.centerY);
+          // Check if this region is selected (supports multiple selections from 3D map)
+          const isSelected = selectedRegion === key || selectedRegions.has(key);
 
           return (
             <G key={key}>
@@ -185,6 +258,18 @@ export default function BodyMapSelector({ onLocationSelect, selectedLocation }: 
         />
       </View>
       <InlineHelp text="Tap on the body diagram below to mark where the lesion is located, or select from the list" color="#718096" />
+
+      {/* Show pre-selected locations from 3D body map */}
+      {allLocations.length > 0 && (
+        <View style={styles.preselectedBanner}>
+          <Text style={styles.preselectedText}>
+            {allLocations.length} location{allLocations.length > 1 ? 's' : ''} pre-selected from 3D body map
+          </Text>
+          <Text style={styles.preselectedHint}>
+            {allLocations.map(loc => loc.replace(/_/g, ' ')).join(', ')}
+          </Text>
+        </View>
+      )}
 
       {/* View toggle */}
       <View style={styles.viewToggle}>
@@ -264,6 +349,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#718096',
     marginBottom: 16,
+  },
+  preselectedBanner: {
+    backgroundColor: '#ebf8ff',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#90cdf4',
+  },
+  preselectedText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2b6cb0',
+  },
+  preselectedHint: {
+    fontSize: 12,
+    color: '#4299e1',
+    marginTop: 4,
+    textTransform: 'capitalize',
   },
   viewToggle: {
     flexDirection: 'row',

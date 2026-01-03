@@ -1291,6 +1291,7 @@ export default function AnalysisDetailScreen() {
     return null;
   }
 
+  // Format analysis for display - uses confidence from backend API
   const formatted = formatAnalysisForDisplay(analysis);
 
   return (
@@ -1546,6 +1547,33 @@ export default function AnalysisDetailScreen() {
           <View style={styles.resultsSection}>
             <Text style={styles.sectionTitle}>🔍 Analysis Results</Text>
 
+            {/* Model Disagreement Warning */}
+            {(() => {
+              const malignantTypes = ['Melanoma', 'Basal Cell Carcinoma', 'Squamous Cell Carcinoma', 'Actinic Keratosis'];
+              const binaryLesionProb = analysis.binary_probabilities?.lesion || 0;
+              const predictedClass = analysis.predicted_class || '';
+              const isMalignantPrediction = malignantTypes.some(type =>
+                predictedClass.toLowerCase().includes(type.toLowerCase())
+              );
+              const modelsDisagree = binaryLesionProb < 0.5 && isMalignantPrediction && analysis.lesion_confidence > 0.3;
+
+              if (modelsDisagree) {
+                return (
+                  <View style={styles.modelDisagreementBanner}>
+                    <Text style={styles.modelDisagreementIcon}>⚠️</Text>
+                    <View style={styles.modelDisagreementContent}>
+                      <Text style={styles.modelDisagreementTitle}>Requires Professional Review</Text>
+                      <Text style={styles.modelDisagreementText}>
+                        Initial screening was uncertain, but pattern analysis detected features consistent with {predictedClass}.
+                        Dermatologist consultation is recommended for definitive diagnosis.
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }
+              return null;
+            })()}
+
             <View style={styles.resultItem}>
               <Text style={styles.resultLabel}>Classification:</Text>
               <Text style={styles.resultValue}>
@@ -1561,10 +1589,21 @@ export default function AnalysisDetailScreen() {
             )}
 
             <View style={styles.resultItem}>
-              <Text style={styles.resultLabel}>Confidence Level:</Text>
-              <Text style={[styles.confidenceValue, { color: formatted.confidenceLevel.color }]}>
-                {Math.round((formatted.confidence || 0) * 100)}% ({formatted.confidenceLevel.level})
-              </Text>
+              <Text style={styles.resultLabel}>Classification Confidence:</Text>
+              {(() => {
+                // Use lesion_confidence (cancer type probability) - NOT binary_confidence (lesion detection)
+                const conf = analysis.lesion_confidence !== null && analysis.lesion_confidence !== undefined
+                  ? analysis.lesion_confidence
+                  : (analysis.binary_confidence || 0);
+                const pct = Math.round(conf * 100);
+                const level = pct >= 80 ? 'High' : pct >= 60 ? 'Medium' : 'Low';
+                const clr = pct >= 70 ? '#28a745' : pct >= 50 ? '#ffc107' : '#dc3545';
+                return (
+                  <Text style={[styles.confidenceValue, { color: clr }]}>
+                    {pct}% ({level})
+                  </Text>
+                );
+              })()}
             </View>
 
             <View style={styles.resultItem}>
@@ -4020,15 +4059,22 @@ export default function AnalysisDetailScreen() {
               {analysis.binary_probabilities && Object.keys(analysis.binary_probabilities).length > 0 && (
                 <View style={styles.probabilitySubsection}>
                   <Text style={styles.probabilitySubtitle}>🔍 Lesion Detection</Text>
-                  {Object.entries(analysis.binary_probabilities).map(([className, probability]) => (
-                    <View key={className} style={styles.probabilityItem}>
-                      <Text style={styles.probabilityLabel}>{className}:</Text>
-                      <View style={styles.probabilityBarContainer}>
-                        <View style={[styles.probabilityBar, { width: `${probability * 100}%` }]} />
-                        <Text style={styles.probabilityValue}>{Math.round(probability * 100)}%</Text>
+                  {/* Display in order: Lesion first (concerning outcome), then Non-Lesion */}
+                  {['lesion', 'non_lesion'].map((key) => {
+                    const probability = analysis.binary_probabilities[key];
+                    if (probability === undefined) return null;
+                    const displayName = key === 'lesion' ? 'Lesion' : 'Non-Lesion';
+                    const barColor = key === 'lesion' ? '#dc3545' : '#28a745';
+                    return (
+                      <View key={key} style={styles.probabilityItem}>
+                        <Text style={styles.probabilityLabel}>{displayName}:</Text>
+                        <View style={styles.probabilityBarContainer}>
+                          <View style={[styles.probabilityBar, { width: `${probability * 100}%`, backgroundColor: barColor }]} />
+                          <Text style={styles.probabilityValue}>{Math.round(probability * 100)}%</Text>
+                        </View>
                       </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               )}
 
@@ -5014,6 +5060,34 @@ const styles = StyleSheet.create({
   },
   resultsSection: {
     marginBottom: 24,
+  },
+  modelDisagreementBanner: {
+    flexDirection: 'row',
+    backgroundColor: '#fff3cd',
+    borderWidth: 1,
+    borderColor: '#ffc107',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    alignItems: 'flex-start',
+  },
+  modelDisagreementIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  modelDisagreementContent: {
+    flex: 1,
+  },
+  modelDisagreementTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#856404',
+    marginBottom: 4,
+  },
+  modelDisagreementText: {
+    fontSize: 13,
+    color: '#856404',
+    lineHeight: 18,
   },
   resultItem: {
     flexDirection: 'row',

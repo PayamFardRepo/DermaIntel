@@ -70,7 +70,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 def login_user(form_data: UserLogin, db: Session = Depends(get_db)):
-    """Authenticate user and return access token."""
+    """Authenticate user and return access token with user role."""
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -82,7 +82,11 @@ def login_user(form_data: UserLogin, db: Session = Depends(get_db)):
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": user.role or "patient"
+    }
 
 
 # =============================================================================

@@ -12,7 +12,7 @@ import {
   Platform,
   StatusBar
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { API_BASE_URL } from '../config';
@@ -75,13 +75,25 @@ interface SecondOpinion {
 export default function DermatologistIntegrationScreen() {
   const { user } = useAuth();
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'directory' | 'consultations' | 'referrals' | 'second-opinions'>('directory');
+  const params = useLocalSearchParams<{ tab?: string; action?: string }>();
+
+  // Initialize tab based on route params
+  const initialTab = params.tab === 'consultations' ? 'consultations' :
+                     params.tab === 'referrals' ? 'referrals' :
+                     params.tab === 'second-opinions' ? 'second-opinions' : 'directory';
+
+  const [activeTab, setActiveTab] = useState<'directory' | 'consultations' | 'referrals' | 'second-opinions'>(initialTab);
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Directory state
   const [dermatologists, setDermatologists] = useState<Dermatologist[]>([]);
   const [selectedDermatologist, setSelectedDermatologist] = useState<Dermatologist | null>(null);
+  const [minRating, setMinRating] = useState<number>(0); // 0 = no filter, 1-5 = minimum rating
+  const [searchRadius, setSearchRadius] = useState<number>(10); // miles
+  const [sortBy, setSortBy] = useState<'distance' | 'rating'>('distance');
+  const [specialistType, setSpecialistType] = useState<'dermatologist' | 'oncologist' | 'both'>('dermatologist');
+  const [hasSearched, setHasSearched] = useState(false); // Track if user has initiated a search
 
   // Consultation state
   const [consultations, setConsultations] = useState<Consultation[]>([]);
@@ -109,8 +121,11 @@ export default function DermatologistIntegrationScreen() {
   const [secondOpinionUrgency, setSecondOpinionUrgency] = useState('routine');
 
   useEffect(() => {
+    // Don't auto-load dermatologists - wait for user to configure filters and search
     if (activeTab === 'directory') {
-      loadDermatologists();
+      // Reset search state when switching to directory tab
+      setHasSearched(false);
+      setDermatologists([]);
     } else if (activeTab === 'consultations') {
       loadConsultations();
     } else if (activeTab === 'referrals') {
@@ -120,21 +135,53 @@ export default function DermatologistIntegrationScreen() {
     }
   }, [activeTab]);
 
+  // Handle action=request param to show booking form automatically
+  useEffect(() => {
+    if (params.action === 'request' && params.tab === 'consultations') {
+      setShowBookingForm(true);
+    }
+  }, [params.action, params.tab]);
+
   const loadDermatologists = async () => {
     try {
       setIsLoading(true);
+      setHasSearched(true);
 
-      // Use Google Places API to search for real dermatologists
+      // Use Google Places API to search for specialists
       const location = await DoctorSearchService.getCurrentLocation();
-      const results = await DoctorSearchService.searchNearbyDoctors(
-        'Dermatologist',
-        location.latitude,
-        location.longitude,
-        16000 // ~10 miles radius
+      // Convert miles to meters (1 mile = 1609.34 meters)
+      const radiusMeters = searchRadius * 1609.34;
+
+      let allResults: any[] = [];
+
+      // Search based on specialist type
+      if (specialistType === 'dermatologist' || specialistType === 'both') {
+        const dermResults = await DoctorSearchService.searchNearbyDoctors(
+          'Dermatologist',
+          location.latitude,
+          location.longitude,
+          radiusMeters
+        );
+        allResults = [...allResults, ...dermResults.map((doc: any) => ({ ...doc, specialistType: 'Dermatologist' }))];
+      }
+
+      if (specialistType === 'oncologist' || specialistType === 'both') {
+        const oncoResults = await DoctorSearchService.searchNearbyDoctors(
+          'Oncologist',
+          location.latitude,
+          location.longitude,
+          radiusMeters
+        );
+        allResults = [...allResults, ...oncoResults.map((doc: any) => ({ ...doc, specialistType: 'Oncologist' }))];
+      }
+
+      // Remove duplicates based on placeId
+      const uniqueResults = allResults.filter((doc, index, self) =>
+        index === self.findIndex((d) => d.placeId === doc.placeId)
       );
 
       // Map results to our interface
-      const mappedResults: Dermatologist[] = results.map((doc: any, index: number) => ({
+      let mappedResults: Dermatologist[] = uniqueResults.map((doc: any, index: number) => ({
         id: index + 1,
         placeId: doc.placeId,
         name: doc.name,
@@ -147,20 +194,41 @@ export default function DermatologistIntegrationScreen() {
         isOpen: doc.isOpen,
         phone: doc.phone,
         location: doc.location,
-        // These are assumed capabilities for dermatologists found via search
+        specializations: [doc.specialistType],
+        // These are assumed capabilities for specialists found via search
         accepts_video_consultations: true,
         accepts_referrals: true,
         accepts_second_opinions: true,
         is_verified: doc.userRatingsTotal > 50, // Consider verified if many reviews
       }));
 
+      // Apply minimum rating filter
+      if (minRating > 0) {
+        mappedResults = mappedResults.filter(derm => {
+          const rating = typeof derm.rating === 'number' ? derm.rating : (derm.average_rating || 0);
+          return rating >= minRating;
+        });
+      }
+
+      // Sort results
+      if (sortBy === 'rating') {
+        mappedResults.sort((a, b) => {
+          const ratingA = typeof a.rating === 'number' ? a.rating : (a.average_rating || 0);
+          const ratingB = typeof b.rating === 'number' ? b.rating : (b.average_rating || 0);
+          return ratingB - ratingA; // Descending (highest rating first)
+        });
+      } else {
+        // Sort by distance (ascending)
+        mappedResults.sort((a, b) => (a.distance || 999) - (b.distance || 999));
+      }
+
       setDermatologists(mappedResults);
     } catch (error: any) {
-      console.log('Error loading dermatologists:', error);
+      console.log('Error loading specialists:', error);
       if (error.message?.includes('permission')) {
         Alert.alert(
           'Location Required',
-          'Please enable location access to find dermatologists near you.',
+          'Please enable location access to find specialists near you.',
           [{ text: 'OK' }]
         );
       }
@@ -238,11 +306,6 @@ export default function DermatologistIntegrationScreen() {
   };
 
   const handleBookConsultation = async () => {
-    if (!selectedDermatologist) {
-      Alert.alert(t('dermatologist.common.error'), t('dermatologist.consultations.selectDermFirst'));
-      return;
-    }
-
     if (!consultationReason.trim() || !scheduledDate || !scheduledTime) {
       Alert.alert(t('dermatologist.consultations.requiredFields'), t('dermatologist.consultations.fillAllFields'));
       return;
@@ -251,7 +314,10 @@ export default function DermatologistIntegrationScreen() {
     try {
       const datetime = `${scheduledDate}T${scheduledTime}:00`;
       const formData = new FormData();
-      formData.append('dermatologist_id', selectedDermatologist.id.toString());
+      // Dermatologist is now optional - system can assign one
+      if (selectedDermatologist?.id) {
+        formData.append('dermatologist_id', selectedDermatologist.id.toString());
+      }
       formData.append('consultation_type', consultationType);
       formData.append('consultation_reason', consultationReason);
       formData.append('scheduled_datetime', datetime);
@@ -266,13 +332,16 @@ export default function DermatologistIntegrationScreen() {
 
       if (response.ok) {
         const data = await response.json();
-        Alert.alert(t('dermatologist.common.success'), t('dermatologist.consultations.bookingSuccess', { name: data.dermatologist_name }));
+        const successMessage = data.dermatologist_name
+          ? t('dermatologist.consultations.bookingSuccess', { name: data.dermatologist_name })
+          : 'Consultation request submitted successfully! A dermatologist will be assigned.';
+        Alert.alert(t('dermatologist.common.success'), successMessage);
         setShowBookingForm(false);
         setConsultationReason('');
         setScheduledDate('');
         setScheduledTime('');
         setPatientNotes('');
-        setActiveTab('consultations');
+        loadConsultations(); // Refresh the list
       } else {
         const error = await response.json();
         Alert.alert(t('dermatologist.common.error'), error.detail || t('dermatologist.consultations.bookingFailed'));
@@ -362,30 +431,191 @@ export default function DermatologistIntegrationScreen() {
 
   const renderDirectoryTab = () => (
     <View style={styles.tabContent}>
-      {/* Search Info */}
+      {/* Search Filters */}
       <View style={styles.filterSection}>
-        <Text style={styles.sectionTitle}>Find Dermatologists Near You</Text>
+        <Text style={styles.sectionTitle}>Find Specialists Near You</Text>
         <Text style={styles.searchDescription}>
-          Search for board-certified dermatologists in your area using your current location.
+          Configure your search preferences below, then tap "Search" to find specialists in your area.
         </Text>
+
+        {/* Specialist Type Filter */}
+        <View style={styles.filterRow}>
+          <Text style={styles.filterLabel}>Specialist Type:</Text>
+          <View style={styles.specialistOptions}>
+            <Pressable
+              style={[
+                styles.specialistOption,
+                specialistType === 'dermatologist' && styles.specialistOptionActive
+              ]}
+              onPress={() => setSpecialistType('dermatologist')}
+            >
+              <Text style={styles.specialistOptionIcon}>🩺</Text>
+              <Text style={[
+                styles.specialistOptionText,
+                specialistType === 'dermatologist' && styles.specialistOptionTextActive
+              ]}>
+                Dermatologist
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.specialistOption,
+                specialistType === 'oncologist' && styles.specialistOptionActive
+              ]}
+              onPress={() => setSpecialistType('oncologist')}
+            >
+              <Text style={styles.specialistOptionIcon}>🔬</Text>
+              <Text style={[
+                styles.specialistOptionText,
+                specialistType === 'oncologist' && styles.specialistOptionTextActive
+              ]}>
+                Oncologist
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.specialistOption,
+                specialistType === 'both' && styles.specialistOptionActive
+              ]}
+              onPress={() => setSpecialistType('both')}
+            >
+              <Text style={styles.specialistOptionIcon}>👥</Text>
+              <Text style={[
+                styles.specialistOptionText,
+                specialistType === 'both' && styles.specialistOptionTextActive
+              ]}>
+                Both
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Search Radius Filter */}
+        <View style={styles.filterRow}>
+          <Text style={styles.filterLabel}>Search Radius:</Text>
+          <View style={styles.radiusOptions}>
+            {[5, 10, 25, 50].map((radius) => (
+              <Pressable
+                key={radius}
+                style={[
+                  styles.radiusOption,
+                  searchRadius === radius && styles.radiusOptionActive
+                ]}
+                onPress={() => setSearchRadius(radius)}
+              >
+                <Text style={[
+                  styles.radiusOptionText,
+                  searchRadius === radius && styles.radiusOptionTextActive
+                ]}>
+                  {radius} mi
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Minimum Rating Filter */}
+        <View style={styles.filterRow}>
+          <Text style={styles.filterLabel}>Minimum Rating:</Text>
+          <View style={styles.ratingOptions}>
+            <Pressable
+              style={[
+                styles.ratingOption,
+                minRating === 0 && styles.ratingOptionActive
+              ]}
+              onPress={() => setMinRating(0)}
+            >
+              <Text style={[
+                styles.ratingOptionText,
+                minRating === 0 && styles.ratingOptionTextActive
+              ]}>
+                Any
+              </Text>
+            </Pressable>
+            {[3, 3.5, 4, 4.5].map((rating) => (
+              <Pressable
+                key={rating}
+                style={[
+                  styles.ratingOption,
+                  minRating === rating && styles.ratingOptionActive
+                ]}
+                onPress={() => setMinRating(rating)}
+              >
+                <Text style={[
+                  styles.ratingOptionText,
+                  minRating === rating && styles.ratingOptionTextActive
+                ]}>
+                  ⭐ {rating}+
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Sort By */}
+        <View style={styles.filterRow}>
+          <Text style={styles.filterLabel}>Sort By:</Text>
+          <View style={styles.sortOptions}>
+            <Pressable
+              style={[
+                styles.sortOption,
+                sortBy === 'distance' && styles.sortOptionActive
+              ]}
+              onPress={() => setSortBy('distance')}
+            >
+              <Text style={[
+                styles.sortOptionText,
+                sortBy === 'distance' && styles.sortOptionTextActive
+              ]}>
+                📍 Nearest
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.sortOption,
+                sortBy === 'rating' && styles.sortOptionActive
+              ]}
+              onPress={() => setSortBy('rating')}
+            >
+              <Text style={[
+                styles.sortOptionText,
+                sortBy === 'rating' && styles.sortOptionTextActive
+              ]}>
+                ⭐ Highest Rated
+              </Text>
+            </Pressable>
+          </View>
+        </View>
 
         <Pressable
           style={styles.searchButton}
           onPress={loadDermatologists}
+          disabled={isLoading}
         >
           <Text style={styles.searchButtonText}>
-            {isLoading ? 'Searching...' : '📍 Search Near Me'}
+            {isLoading ? 'Searching...' : '🔍 Search Specialists'}
           </Text>
         </Pressable>
       </View>
 
-      {/* Results */}
+      {/* Results - Only show after user has searched */}
       {isLoading ? (
         <ActivityIndicator size="large" color="#0284c7" style={{ marginTop: 20 }} />
+      ) : !hasSearched ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateIcon}>🔍</Text>
+          <Text style={styles.emptyStateText}>Configure Your Search</Text>
+          <Text style={styles.emptyStateSubtext}>
+            Select your preferred specialist type, search radius, and minimum rating above, then tap "Search Specialists" to find providers near you.
+          </Text>
+        </View>
       ) : dermatologists.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>{t('dermatologist.directory.noResults')}</Text>
-          <Text style={styles.emptyStateSubtext}>{t('dermatologist.directory.noResultsSubtext')}</Text>
+          <Text style={styles.emptyStateIcon}>😕</Text>
+          <Text style={styles.emptyStateText}>No Results Found</Text>
+          <Text style={styles.emptyStateSubtext}>
+            Try expanding your search radius or lowering the minimum rating requirement.
+          </Text>
         </View>
       ) : (
         <ScrollView style={styles.resultsList}>
@@ -399,8 +629,17 @@ export default function DermatologistIntegrationScreen() {
               onPress={() => setSelectedDermatologist(derm)}
             >
               <View style={styles.dermHeader}>
-                <Text style={styles.dermName}>{derm.name || derm.full_name}</Text>
-                {derm.is_verified && <Text style={styles.verifiedBadge}>{t('dermatologist.directory.verified')}</Text>}
+                <View style={styles.dermNameRow}>
+                  <Text style={styles.dermName}>{derm.name || derm.full_name}</Text>
+                  {derm.is_verified && <Text style={styles.verifiedBadge}>{t('dermatologist.directory.verified')}</Text>}
+                </View>
+                {derm.specializations && derm.specializations.length > 0 && (
+                  <View style={styles.specialistBadge}>
+                    <Text style={styles.specialistBadgeText}>
+                      {derm.specializations[0] === 'Oncologist' ? '🔬' : '🩺'} {derm.specializations[0]}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               {/* Address and distance */}
@@ -488,10 +727,16 @@ export default function DermatologistIntegrationScreen() {
       {showBookingForm ? (
         <View style={styles.formContainer}>
           <Text style={styles.formTitle}>{t('dermatologist.consultations.bookVideoConsultation')}</Text>
-          {selectedDermatologist && (
+          {selectedDermatologist ? (
             <View style={styles.selectedDermInfo}>
               <Text style={styles.selectedDermName}>{selectedDermatologist.full_name}</Text>
               <Text style={styles.selectedDermDetails}>{selectedDermatologist.practice_name}</Text>
+            </View>
+          ) : (
+            <View style={styles.noSelectedDermInfo}>
+              <Text style={styles.noSelectedDermText}>
+                No specific dermatologist selected. A dermatologist will be assigned to your consultation.
+              </Text>
             </View>
           )}
 
@@ -580,10 +825,20 @@ export default function DermatologistIntegrationScreen() {
         </View>
       ) : (
         <>
+          {/* Request Consultation Button */}
+          <Pressable
+            style={styles.addButton}
+            onPress={() => {
+              setShowBookingForm(true);
+            }}
+          >
+            <Text style={styles.addButtonText}>Request Consultation</Text>
+          </Pressable>
+
           {consultations.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>{t('dermatologist.consultations.noConsultations')}</Text>
-              <Text style={styles.emptyStateSubtext}>{t('dermatologist.consultations.browseDirectory')}</Text>
+              <Text style={styles.emptyStateSubtext}>Tap "Request Consultation" above to schedule your first consultation with a dermatologist.</Text>
             </View>
           ) : (
             <ScrollView style={styles.resultsList}>
@@ -1100,6 +1355,127 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
+  filterRow: {
+    marginBottom: 16,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  radiusOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  radiusOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+  },
+  radiusOptionActive: {
+    backgroundColor: '#0284c7',
+    borderColor: '#0284c7',
+  },
+  radiusOptionText: {
+    fontSize: 14,
+    color: '#4b5563',
+  },
+  radiusOptionTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  ratingOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  ratingOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+  },
+  ratingOptionActive: {
+    backgroundColor: '#f59e0b',
+    borderColor: '#f59e0b',
+  },
+  ratingOptionText: {
+    fontSize: 14,
+    color: '#4b5563',
+  },
+  ratingOptionTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  sortOptions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  sortOption: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+  },
+  sortOptionActive: {
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
+  },
+  sortOptionText: {
+    fontSize: 14,
+    color: '#4b5563',
+  },
+  sortOptionTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  specialistOptions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  specialistOption: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  specialistOptionActive: {
+    backgroundColor: '#7c3aed',
+    borderColor: '#7c3aed',
+  },
+  specialistOptionIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  specialistOptionText: {
+    fontSize: 12,
+    color: '#4b5563',
+    textAlign: 'center',
+  },
+  specialistOptionTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  emptyStateIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1135,6 +1511,9 @@ const styles = StyleSheet.create({
     borderColor: '#0284c7',
   },
   dermHeader: {
+    marginBottom: 8,
+  },
+  dermNameRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -1154,6 +1533,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
+  },
+  specialistBadge: {
+    backgroundColor: '#ede9fe',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  specialistBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#7c3aed',
   },
   dermCredentials: {
     fontSize: 14,
@@ -1292,6 +1683,19 @@ const styles = StyleSheet.create({
   selectedDermDetails: {
     fontSize: 13,
     color: '#1e40af',
+  },
+  noSelectedDermInfo: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f59e0b',
+  },
+  noSelectedDermText: {
+    fontSize: 13,
+    color: '#92400e',
+    lineHeight: 18,
   },
   radioGroup: {
     flexDirection: 'row',

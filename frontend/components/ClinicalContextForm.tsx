@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -96,6 +96,27 @@ export const ClinicalContextForm: React.FC<ClinicalContextFormProps> = ({
 }) => {
   const [context, setContext] = useState<ClinicalContext>(initialContext);
   const [currentSection, setCurrentSection] = useState(0);
+  const [hasAutoAdvanced, setHasAutoAdvanced] = useState(false);
+
+  // Auto-advance past Patient Info section if age and skin_type are pre-populated
+  useEffect(() => {
+    if (visible && !hasAutoAdvanced) {
+      // Update context with initialContext when modal becomes visible
+      setContext(initialContext);
+
+      // If both age and skin_type are pre-filled, auto-advance to section 1 (Lesion History)
+      if (initialContext.patient_age && initialContext.fitzpatrick_skin_type) {
+        setCurrentSection(1);
+        setHasAutoAdvanced(true);
+      }
+    }
+
+    // Reset when modal closes
+    if (!visible) {
+      setHasAutoAdvanced(false);
+      setCurrentSection(0);
+    }
+  }, [visible, initialContext]);
 
   const sections = [
     { title: 'Patient Info', icon: '👤' },
@@ -146,51 +167,64 @@ export const ClinicalContextForm: React.FC<ClinicalContextFormProps> = ({
     </View>
   );
 
-  const renderPatientInfo = () => (
-    <View style={styles.sectionContent}>
-      <Text style={styles.sectionTitle}>Patient Information</Text>
-      <Text style={styles.sectionDescription}>
-        Basic information helps calibrate the risk assessment
-      </Text>
+  const renderPatientInfo = () => {
+    const isPrePopulated = initialContext.patient_age && initialContext.fitzpatrick_skin_type;
 
-      {/* Age Input */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Age (years)</Text>
-        <TextInput
-          style={styles.textInput}
-          placeholder="Enter age"
-          keyboardType="numeric"
-          value={context.patient_age?.toString() || ''}
-          onChangeText={(text) => updateContext('patient_age', text ? parseInt(text) : undefined)}
-        />
-      </View>
+    return (
+      <View style={styles.sectionContent}>
+        <Text style={styles.sectionTitle}>Patient Information</Text>
+        <Text style={styles.sectionDescription}>
+          Basic information helps calibrate the risk assessment
+        </Text>
 
-      {/* Fitzpatrick Skin Type */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Skin Type (Fitzpatrick Scale)</Text>
-        <View style={styles.optionGrid}>
-          {FITZPATRICK_TYPES.map((type) => (
-            <Pressable
-              key={type.value}
-              style={[
-                styles.optionButton,
-                context.fitzpatrick_skin_type === type.value && styles.optionButtonActive,
-              ]}
-              onPress={() => updateContext('fitzpatrick_skin_type', type.value)}
-            >
-              <Text style={[
-                styles.optionLabel,
-                context.fitzpatrick_skin_type === type.value && styles.optionLabelActive,
-              ]}>
-                {type.label}
-              </Text>
-              <Text style={styles.optionDescription}>{type.description}</Text>
-            </Pressable>
-          ))}
+        {/* Show pre-populated notice if data came from profile */}
+        {isPrePopulated && (
+          <View style={styles.prePopulatedNotice}>
+            <Text style={styles.prePopulatedText}>
+              ✓ Pre-filled from your profile. You can edit if needed.
+            </Text>
+          </View>
+        )}
+
+        {/* Age Input */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Age (years)</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Enter age"
+            keyboardType="numeric"
+            value={context.patient_age?.toString() || ''}
+            onChangeText={(text) => updateContext('patient_age', text ? parseInt(text) : undefined)}
+          />
+        </View>
+
+        {/* Fitzpatrick Skin Type */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Skin Type (Fitzpatrick Scale)</Text>
+          <View style={styles.optionGrid}>
+            {FITZPATRICK_TYPES.map((type) => (
+              <Pressable
+                key={type.value}
+                style={[
+                  styles.optionButton,
+                  context.fitzpatrick_skin_type === type.value && styles.optionButtonActive,
+                ]}
+                onPress={() => updateContext('fitzpatrick_skin_type', type.value)}
+              >
+                <Text style={[
+                  styles.optionLabel,
+                  context.fitzpatrick_skin_type === type.value && styles.optionLabelActive,
+                ]}>
+                  {type.label}
+                </Text>
+                <Text style={styles.optionDescription}>{type.description}</Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderLesionHistory = () => (
     <View style={styles.sectionContent}>
@@ -542,6 +576,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748b',
     marginBottom: 20,
+  },
+  prePopulatedNotice: {
+    backgroundColor: '#ecfdf5',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
+  },
+  prePopulatedText: {
+    fontSize: 13,
+    color: '#059669',
+    fontWeight: '500',
   },
   subheading: {
     fontSize: 16,

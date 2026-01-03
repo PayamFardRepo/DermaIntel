@@ -666,3 +666,179 @@ else:
     print("\n" + "="*60)
     print("All models loaded successfully!")
     print("="*60 + "\n")
+
+
+# =============================================================================
+# ENSEMBLE PREDICTION FUNCTION
+# =============================================================================
+
+def ensemble_predict(image: Image.Image, use_malignancy_boost: bool = True) -> dict:
+    """
+    Ensemble prediction combining multiple models for improved accuracy.
+
+    Strategy:
+    1. Run lesion_model (primary ViT model)
+    2. Run isic_model (8-class ISIC model) if available
+    3. Run isic_2020_binary_model (benign/malignant) if available
+    4. Combine predictions with weighted averaging
+    5. Boost malignant classes if binary model predicts malignant with high confidence
+
+    Returns:
+        dict with 'probabilities', 'predicted_class', 'confidence', 'malignancy_score', 'ensemble_info'
+    """
+    import torch.nn.functional as F
+
+    results = {
+        "models_used": [],
+        "individual_predictions": {},
+        "malignancy_score": None,
+        "malignancy_boost_applied": False,
+    }
+
+    # Standardized class mapping
+    class_map = {
+        "Melanoma": "Melanoma",
+        "MEL": "Melanoma",
+        "mel": "Melanoma",
+        "Melanocytic Nevus": "Melanocytic Nevus",
+        "NV": "Melanocytic Nevus",
+        "nv": "Melanocytic Nevus",
+        "Basal Cell Carcinoma": "Basal Cell Carcinoma",
+        "BCC": "Basal Cell Carcinoma",
+        "bcc": "Basal Cell Carcinoma",
+        "Actinic Keratosis": "Actinic Keratosis",
+        "AK": "Actinic Keratosis",
+        "akiec": "Actinic Keratosis",
+        "Benign Keratosis": "Benign Keratosis",
+        "BKL": "Benign Keratosis",
+        "bkl": "Benign Keratosis",
+        "Dermatofibroma": "Dermatofibroma",
+        "DF": "Dermatofibroma",
+        "df": "Dermatofibroma",
+        "Vascular Lesion": "Vascular Lesion",
+        "VASC": "Vascular Lesion",
+        "vasc": "Vascular Lesion",
+        "Squamous Cell Carcinoma": "Squamous Cell Carcinoma",
+        "SCC": "Squamous Cell Carcinoma",
+        "scc": "Squamous Cell Carcinoma",
+    }
+
+    malignant_classes = {"Melanoma", "Basal Cell Carcinoma", "Squamous Cell Carcinoma", "Actinic Keratosis"}
+
+    # Initialize combined probabilities
+    combined_probs = {}
+    weights_sum = 0.0
+
+    # 1. Primary model: lesion_model (weight: 0.5)
+    if lesion_model is not None and lesion_processor is not None:
+        try:
+            inputs = lesion_processor(images=image, return_tensors="pt")
+            with torch.no_grad():
+                outputs = lesion_model(**inputs)
+                probs = F.softmax(outputs.logits, dim=-1)[0]
+
+            labels = lesion_model.config.id2label
+            lesion_probs = {}
+            for i, prob in enumerate(probs):
+                class_name = class_map.get(labels[i], labels[i])
+                lesion_probs[class_name] = prob.item()
+
+            results["models_used"].append("lesion_model")
+            results["individual_predictions"]["lesion_model"] = lesion_probs
+
+            # Add to combined with weight 0.5
+            weight = 0.5
+            for cls, prob in lesion_probs.items():
+                combined_probs[cls] = combined_probs.get(cls, 0) + prob * weight
+            weights_sum += weight
+        except Exception as e:
+            print(f"[WARN] lesion_model prediction failed: {e}")
+
+    # 2. ISIC 8-class model (weight: 0.35)
+    if isic_model is not None:
+        try:
+            img_tensor = isic_transform(image).unsqueeze(0).to(device)
+            with torch.no_grad():
+                outputs = isic_model(img_tensor)
+                probs = F.softmax(outputs, dim=-1)[0]
+
+            isic_probs = {}
+            for i, class_code in enumerate(isic_class_names):
+                class_name = isic_class_full_names.get(class_code, class_code)
+                isic_probs[class_name] = probs[i].item()
+
+            results["models_used"].append("isic_model")
+            results["individual_predictions"]["isic_model"] = isic_probs
+
+            # Add to combined with weight 0.35
+            weight = 0.35
+            for cls, prob in isic_probs.items():
+                combined_probs[cls] = combined_probs.get(cls, 0) + prob * weight
+            weights_sum += weight
+        except Exception as e:
+            print(f"[WARN] isic_model prediction failed: {e}")
+
+    # 3. ISIC 2020 Binary model for malignancy detection (weight: 0.15 influence)
+    malignancy_prob = 0.0
+    if isic_2020_binary_model is not None:
+        try:
+            img_tensor = isic_transform(image).unsqueeze(0).to(device)
+            with torch.no_grad():
+                outputs = isic_2020_binary_model(img_tensor)
+                probs = F.softmax(outputs, dim=-1)[0]
+
+            # Index 1 is typically "malignant"
+            malignancy_prob = probs[1].item() if len(probs) > 1 else probs[0].item()
+            results["malignancy_score"] = round(malignancy_prob, 4)
+            results["models_used"].append("isic_2020_binary")
+            results["individual_predictions"]["isic_2020_binary"] = {
+                "benign": probs[0].item(),
+                "malignant": malignancy_prob
+            }
+        except Exception as e:
+            print(f"[WARN] isic_2020_binary prediction failed: {e}")
+
+    # Normalize combined probabilities
+    if weights_sum > 0:
+        for cls in combined_probs:
+            combined_probs[cls] /= weights_sum
+    else:
+        # Fallback if no models worked
+        return {
+            "probabilities": {"Unknown": 1.0},
+            "predicted_class": "Unknown",
+            "confidence": 0.0,
+            "malignancy_score": None,
+            "ensemble_info": results
+        }
+
+    # 4. Apply malignancy boost if binary model is confident about malignancy
+    if use_malignancy_boost and malignancy_prob > 0.5:
+        results["malignancy_boost_applied"] = True
+        boost_factor = 1.0 + (malignancy_prob - 0.5) * 2  # 1.0 to 2.0 boost
+
+        # Boost malignant class probabilities
+        for cls in malignant_classes:
+            if cls in combined_probs:
+                combined_probs[cls] *= boost_factor
+
+        # Re-normalize
+        total = sum(combined_probs.values())
+        if total > 0:
+            for cls in combined_probs:
+                combined_probs[cls] /= total
+
+    # Round probabilities
+    combined_probs = {cls: round(prob, 4) for cls, prob in combined_probs.items()}
+
+    # Get predicted class and confidence
+    predicted_class = max(combined_probs, key=combined_probs.get)
+    confidence = combined_probs[predicted_class]
+
+    return {
+        "probabilities": combined_probs,
+        "predicted_class": predicted_class,
+        "confidence": confidence,
+        "malignancy_score": results["malignancy_score"],
+        "ensemble_info": results
+    }

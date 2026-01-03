@@ -284,6 +284,15 @@ class UserProfile(Base):
     family_history = Column(Text)
     ethnicity = Column(String)  # For demographic and risk assessment
 
+    # Phenotype characteristics for risk assessment
+    natural_hair_color = Column(String)  # red, blonde, light_brown, dark_brown, black
+    natural_eye_color = Column(String)  # blue, green, hazel, brown
+    freckles = Column(String)  # none, few, some, many
+
+    # Family history of skin conditions
+    family_history_skin_cancer = Column(Boolean, default=False)
+    family_history_melanoma = Column(Boolean, default=False)
+
     # Location information (for dermatologist matching)
     city = Column(String, index=True)
     state = Column(String, index=True)
@@ -1542,7 +1551,7 @@ class VideoConsultation(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    dermatologist_id = Column(Integer, ForeignKey("dermatologist_profiles.id"), nullable=False, index=True)
+    dermatologist_id = Column(Integer, ForeignKey("dermatologist_profiles.id"), nullable=True, index=True)  # Nullable for pending assignment
 
     # Related analysis/lesion
     analysis_id = Column(Integer, ForeignKey("analysis_history.id"), nullable=True, index=True)

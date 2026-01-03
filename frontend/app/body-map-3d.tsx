@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import {
   transformLesionsTo3D,
   BODY_PART_3D_CONFIG,
 } from '../utils/body3DHelpers';
+import * as THREE from 'three';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -45,6 +46,14 @@ export default function BodyMap3DScreen() {
   const [showLegend, setShowLegend] = useState(true);
   const [use3DView, setUse3DView] = useState(true);
   const [glError, setGlError] = useState(false);
+  // Marker placement mode (supports multiple markers)
+  const [markerMode, setMarkerMode] = useState(false);
+  const [markedLocations, setMarkedLocations] = useState<Array<{
+    id: number;
+    bodyPart: string;
+    position: THREE.Vector3;
+  }>>([]);
+  const nextMarkerId = useRef(1);
 
   useEffect(() => {
     loadBodyMapData();
@@ -53,11 +62,26 @@ export default function BodyMap3DScreen() {
   const loadBodyMapData = async () => {
     try {
       const token = await SecureStore.getItemAsync('auth_token');
+
+      if (!token) {
+        Alert.alert('Session Expired', 'Please log in again to view your body map.');
+        router.replace('/login' as any);
+        return;
+      }
+
       const response = await fetch(`${API_BASE_URL}/analysis/history`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      if (!response.ok) throw new Error('Failed to load data');
+      if (response.status === 401 || response.status === 403) {
+        Alert.alert('Session Expired', 'Please log in again to view your body map.');
+        router.replace('/login' as any);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
 
       const data = await response.json();
       const analysesWithLocation = data.filter((a: any) => a.body_location);
@@ -68,7 +92,10 @@ export default function BodyMap3DScreen() {
       calculateStats(markers3D);
     } catch (error) {
       console.error('Error loading body map:', error);
-      Alert.alert('Error', 'Failed to load body map data');
+      const message = error instanceof Error && error.message.includes('Network')
+        ? 'Unable to connect to server. Please check your connection.'
+        : 'Failed to load body map data. Please try again.';
+      Alert.alert('Error', message);
     } finally {
       setLoading(false);
     }
@@ -112,6 +139,43 @@ export default function BodyMap3DScreen() {
     setSelectedBodyPart(bodyPart);
     setSelectedLesionId(null);
   }, []);
+
+  const handleMarkerPlace = useCallback((bodyPart: string, position: THREE.Vector3) => {
+    // Add new marker to the list
+    setMarkedLocations(prev => [...prev, {
+      id: nextMarkerId.current++,
+      bodyPart,
+      position: position.clone(),
+    }]);
+  }, []);
+
+  const removeMarker = useCallback((markerId: number) => {
+    setMarkedLocations(prev => prev.filter(m => m.id !== markerId));
+  }, []);
+
+  const clearAllMarkers = useCallback(() => {
+    setMarkedLocations([]);
+    nextMarkerId.current = 1;
+  }, []);
+
+  const startAnalysisWithLocation = () => {
+    if (markedLocations.length > 0) {
+      // Pass all marked body locations (comma-separated for multiple)
+      const bodyLocations = markedLocations.map(m => m.bodyPart).join(',');
+      router.push({
+        pathname: '/home',
+        params: { bodyLocation: bodyLocations }
+      } as any);
+    }
+  };
+
+  const toggleMarkerMode = () => {
+    setMarkerMode(!markerMode);
+    if (markerMode) {
+      // Exiting marker mode - clear all temp markers
+      clearAllMarkers();
+    }
+  };
 
   const navigateToLesion = (lesionId: number) => {
     router.push(`/lesion-detail?id=${lesionId}` as any);
@@ -203,12 +267,17 @@ export default function BodyMap3DScreen() {
               onBodyPartTap={handleBodyPartTap}
               selectedLesionId={selectedLesionId}
               viewPreset={viewPreset}
+              markerMode={markerMode}
+              onMarkerPlace={handleMarkerPlace}
+              tempMarkerPositions={markedLocations.map(m => m.position)}
             />
 
             {/* Instructions */}
             <View style={styles.instructionsContainer}>
               <Text style={styles.instructionsText}>
-                Drag to rotate | Pinch to zoom | Tap to select
+                {markerMode
+                  ? '👆 Tap on body to mark lesion location'
+                  : 'Drag to rotate | Pinch to zoom | Tap to select'}
               </Text>
             </View>
           </View>
@@ -258,6 +327,81 @@ export default function BodyMap3DScreen() {
             <Ionicons name="refresh" size={18} color="white" />
           </TouchableOpacity>
         </View>
+
+        {/* Mark New Location Button */}
+        <TouchableOpacity
+          style={[
+            styles.markLocationButton,
+            markerMode && styles.markLocationButtonActive,
+          ]}
+          onPress={toggleMarkerMode}
+        >
+          <Ionicons
+            name={markerMode ? 'close-circle' : 'add-circle'}
+            size={24}
+            color="white"
+          />
+          <Text style={styles.markLocationButtonText}>
+            {markerMode ? 'Cancel Marking' : 'Mark New Location'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Marker Placement Confirmation (Multiple Markers) */}
+        {markerMode && markedLocations.length > 0 && (
+          <View style={styles.markerConfirmCard}>
+            <View style={styles.markerConfirmHeader}>
+              <Ionicons name="location" size={24} color="#4cc9f0" />
+              <Text style={styles.markerConfirmTitle}>
+                {markedLocations.length === 1
+                  ? 'Location Selected'
+                  : `${markedLocations.length} Locations Selected`}
+              </Text>
+            </View>
+
+            {/* List of marked locations */}
+            <ScrollView style={styles.markedLocationsList} nestedScrollEnabled>
+              {markedLocations.map((location, index) => (
+                <View key={location.id} style={styles.markedLocationItem}>
+                  <View style={styles.markedLocationInfo}>
+                    <Text style={styles.markedLocationNumber}>{index + 1}.</Text>
+                    <Text style={styles.markerConfirmLocation}>
+                      {formatBodyPartName(location.bodyPart)}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.removeMarkerButton}
+                    onPress={() => removeMarker(location.id)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                    <Text style={styles.removeMarkerText}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+
+            <Text style={styles.markerConfirmHint}>
+              {markedLocations.length === 1
+                ? 'Start an analysis to document a lesion at this location'
+                : 'Tap on the body to add more locations, or start analysis'}
+            </Text>
+            <View style={styles.markerConfirmButtons}>
+              <TouchableOpacity
+                style={styles.markerConfirmCancelButton}
+                onPress={clearAllMarkers}
+              >
+                <Text style={styles.markerConfirmCancelText}>Clear All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.markerConfirmStartButton}
+                onPress={startAnalysisWithLocation}
+              >
+                <Ionicons name="camera" size={18} color="white" />
+                <Text style={styles.markerConfirmStartText}>Start Analysis</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Legend */}
         <TouchableOpacity
@@ -544,6 +688,125 @@ const styles = StyleSheet.create({
   },
   presetButtonTextActive: {
     color: 'white',
+  },
+  markLocationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingVertical: 14,
+    backgroundColor: 'rgba(76, 201, 240, 0.3)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 201, 240, 0.5)',
+    gap: 8,
+  },
+  markLocationButtonActive: {
+    backgroundColor: 'rgba(220, 53, 69, 0.3)',
+    borderColor: 'rgba(220, 53, 69, 0.5)',
+  },
+  markLocationButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  markerConfirmCard: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: 'rgba(76, 201, 240, 0.15)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 201, 240, 0.3)',
+  },
+  markerConfirmHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  markerConfirmTitle: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  markerConfirmLocation: {
+    color: '#4cc9f0',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textTransform: 'capitalize',
+  },
+  markedLocationsList: {
+    maxHeight: 120,
+    marginBottom: 8,
+  },
+  markedLocationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  markedLocationInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  markedLocationNumber: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    marginRight: 8,
+    width: 20,
+  },
+  removeMarkerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    gap: 4,
+  },
+  removeMarkerText: {
+    color: '#ef4444',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  markerConfirmHint: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 13,
+    marginBottom: 16,
+  },
+  markerConfirmButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  markerConfirmCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  markerConfirmCancelText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '600',
+  },
+  markerConfirmStartButton: {
+    flex: 2,
+    flexDirection: 'row',
+    paddingVertical: 12,
+    backgroundColor: '#4cc9f0',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  markerConfirmStartText: {
+    color: 'white',
+    fontWeight: '600',
   },
   legendToggle: {
     flexDirection: 'row',

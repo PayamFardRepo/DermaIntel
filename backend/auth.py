@@ -93,3 +93,17 @@ async def get_current_professional_user(current_user: User = Depends(get_current
             detail="Professional access required. This feature is only available for dermatologists and administrators."
         )
     return current_user
+
+
+async def get_current_ops_user(current_user: User = Depends(get_current_active_user)):
+    """
+    Verify that the current user is operations staff or admin.
+    Used for endpoints that manage platform operations (assigning consultations, etc.).
+    """
+    ops_roles = ["admin", "ops_staff", "operations"]
+    if not hasattr(current_user, 'role') or current_user.role not in ops_roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operations access required. This feature is only available for platform operations staff."
+        )
+    return current_user

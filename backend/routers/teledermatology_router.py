@@ -17,9 +17,9 @@ import json
 
 from database import (
     get_db, User, DermatologistProfile, VideoConsultation,
-    Referral, ConsultationNote, SecondOpinion, UserProfile
+    Referral, ConsultationNote, SecondOpinion, UserProfile, AnalysisHistory
 )
-from auth import get_current_active_user
+from auth import get_current_active_user, get_current_ops_user
 
 router = APIRouter(tags=["Teledermatology"])
 
@@ -233,6 +233,103 @@ async def create_dermatologist_profile(
 # VIDEO CONSULTATIONS
 # =============================================================================
 
+@router.post("/consultations")
+async def create_consultation_request(
+    consultation_type: str = Form("initial"),
+    consultation_reason: str = Form(...),
+    scheduled_datetime: str = Form(...),
+    duration_minutes: int = Form(30),
+    dermatologist_id: Optional[int] = Form(None),
+    analysis_id: Optional[int] = Form(None),
+    lesion_group_id: Optional[int] = Form(None),
+    patient_notes: str = Form(None),
+    patient_questions: str = Form(None),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Request a consultation. Dermatologist is optional - if not provided,
+    one will be assigned automatically or the request will be queued.
+    """
+    try:
+        try:
+            scheduled_dt = datetime.fromisoformat(scheduled_datetime.replace('Z', '+00:00'))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid datetime format. Use ISO format (YYYY-MM-DDTHH:MM:SS)")
+
+        questions = json.loads(patient_questions) if patient_questions else []
+
+        # If dermatologist_id provided, verify they exist and accept consultations
+        dermatologist = None
+        dermatologist_name = None
+        if dermatologist_id:
+            dermatologist = db.query(DermatologistProfile).filter(
+                DermatologistProfile.id == dermatologist_id,
+                DermatologistProfile.is_active == True
+            ).first()
+            if dermatologist:
+                dermatologist_name = dermatologist.full_name
+                if not dermatologist.accepts_video_consultations:
+                    raise HTTPException(status_code=400, detail="This dermatologist does not accept video consultations")
+
+        # Create consultation - pending assignment if no dermatologist
+        consultation = VideoConsultation(
+            user_id=current_user.id,
+            dermatologist_id=dermatologist_id if dermatologist else None,
+            analysis_id=analysis_id,
+            lesion_group_id=lesion_group_id,
+            consultation_type=consultation_type,
+            consultation_reason=consultation_reason,
+            scheduled_datetime=scheduled_dt,
+            duration_minutes=duration_minutes,
+            timezone=dermatologist.timezone if dermatologist else "America/New_York",
+            status="pending_assignment" if not dermatologist else "scheduled",
+            patient_notes=patient_notes,
+            patient_questions=questions,
+            video_platform=dermatologist.video_platform if dermatologist else "zoom"
+        )
+
+        db.add(consultation)
+        db.commit()
+        db.refresh(consultation)
+
+        if dermatologist:
+            return {
+                "message": "Consultation booked successfully",
+                "consultation_id": consultation.id,
+                "dermatologist_name": dermatologist_name,
+                "scheduled_datetime": scheduled_dt.isoformat(),
+                "duration_minutes": duration_minutes,
+                "status": "scheduled",
+                "video_platform": consultation.video_platform,
+                "next_steps": [
+                    "You will receive a confirmation email shortly",
+                    "Video meeting link will be sent 24 hours before the appointment",
+                    "Prepare any relevant photos or documents to share during the consultation"
+                ]
+            }
+        else:
+            return {
+                "message": "Consultation request submitted successfully",
+                "consultation_id": consultation.id,
+                "dermatologist_name": None,
+                "scheduled_datetime": scheduled_dt.isoformat(),
+                "duration_minutes": duration_minutes,
+                "status": "pending_assignment",
+                "next_steps": [
+                    "Your request has been received",
+                    "A dermatologist will be assigned to your consultation shortly",
+                    "You will receive a confirmation once assigned"
+                ]
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"Error creating consultation: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create consultation: {str(e)}")
+
+
 @router.post("/consultations/book")
 async def book_video_consultation(
     dermatologist_id: int = Form(...),
@@ -336,7 +433,7 @@ async def list_user_consultations(
             result.append({
                 "id": c.id,
                 "dermatologist_id": c.dermatologist_id,
-                "dermatologist_name": dermatologist.full_name if dermatologist else "Unknown",
+                "dermatologist_name": dermatologist.full_name if dermatologist else ("Pending Assignment" if c.status == "pending_assignment" else "Unknown"),
                 "consultation_type": c.consultation_type,
                 "consultation_reason": c.consultation_reason,
                 "scheduled_datetime": c.scheduled_datetime.isoformat() if c.scheduled_datetime else None,
@@ -358,6 +455,294 @@ async def list_user_consultations(
     except Exception as e:
         print(f"Error listing consultations: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to list consultations: {str(e)}")
+
+
+# =============================================================================
+# OPERATIONS DASHBOARD - Platform Management
+# =============================================================================
+
+@router.get("/ops/consultations")
+async def ops_list_all_consultations(
+    status: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+    current_user: User = Depends(get_current_ops_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Operations dashboard: List all consultations across all users.
+    Requires ops_staff or admin role.
+    """
+    try:
+        query = db.query(VideoConsultation)
+
+        if status:
+            query = query.filter(VideoConsultation.status == status)
+
+        total = query.count()
+        consultations = query.order_by(VideoConsultation.created_at.desc()).offset(skip).limit(limit).all()
+
+        result = []
+        for c in consultations:
+            # Get patient info
+            patient = db.query(User).filter(User.id == c.user_id).first()
+            patient_profile = db.query(UserProfile).filter(UserProfile.user_id == c.user_id).first() if patient else None
+
+            # Get dermatologist info
+            dermatologist = db.query(DermatologistProfile).filter(
+                DermatologistProfile.id == c.dermatologist_id
+            ).first() if c.dermatologist_id else None
+
+            result.append({
+                "id": c.id,
+                "patient": {
+                    "id": patient.id if patient else None,
+                    "username": patient.username if patient else "Unknown",
+                    "full_name": patient.full_name if patient else "Unknown",
+                    "email": patient.email if patient else None
+                },
+                "dermatologist": {
+                    "id": dermatologist.id if dermatologist else None,
+                    "full_name": dermatologist.full_name if dermatologist else None,
+                    "credentials": dermatologist.credentials if dermatologist else None
+                } if dermatologist else None,
+                "consultation_type": c.consultation_type,
+                "consultation_reason": c.consultation_reason,
+                "scheduled_datetime": c.scheduled_datetime.isoformat() if c.scheduled_datetime else None,
+                "duration_minutes": c.duration_minutes,
+                "status": c.status,
+                "created_at": c.created_at.isoformat() if c.created_at else None
+            })
+
+        # Count by status for dashboard stats
+        pending_count = db.query(VideoConsultation).filter(VideoConsultation.status == "pending_assignment").count()
+        scheduled_count = db.query(VideoConsultation).filter(VideoConsultation.status == "scheduled").count()
+        completed_count = db.query(VideoConsultation).filter(VideoConsultation.status == "completed").count()
+
+        return {
+            "consultations": result,
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+            "stats": {
+                "pending_assignment": pending_count,
+                "scheduled": scheduled_count,
+                "completed": completed_count
+            }
+        }
+    except Exception as e:
+        print(f"Error listing ops consultations: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list consultations: {str(e)}")
+
+
+@router.get("/ops/dermatologists/available")
+async def ops_list_available_dermatologists(
+    current_user: User = Depends(get_current_ops_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Operations dashboard: List all active dermatologists who can be assigned.
+    Includes their current workload for informed assignment.
+    Requires ops_staff or admin role.
+    """
+    try:
+        dermatologists = db.query(DermatologistProfile).filter(
+            DermatologistProfile.is_active == True,
+            DermatologistProfile.accepts_video_consultations == True
+        ).all()
+
+        result = []
+        for d in dermatologists:
+            # Count current scheduled consultations
+            scheduled_count = db.query(VideoConsultation).filter(
+                VideoConsultation.dermatologist_id == d.id,
+                VideoConsultation.status.in_(["scheduled", "confirmed"])
+            ).count()
+
+            # Count completed consultations (for experience)
+            completed_count = db.query(VideoConsultation).filter(
+                VideoConsultation.dermatologist_id == d.id,
+                VideoConsultation.status == "completed"
+            ).count()
+
+            result.append({
+                "id": d.id,
+                "full_name": d.full_name,
+                "credentials": d.credentials,
+                "specializations": d.specializations,
+                "average_rating": d.average_rating,
+                "total_reviews": d.total_reviews,
+                "years_experience": d.years_experience,
+                "video_platform": d.video_platform,
+                "timezone": d.timezone,
+                "workload": {
+                    "scheduled_consultations": scheduled_count,
+                    "completed_consultations": completed_count
+                }
+            })
+
+        # Sort by least workload first (for load balancing)
+        result.sort(key=lambda x: x["workload"]["scheduled_consultations"])
+
+        return {
+            "dermatologists": result,
+            "total": len(result)
+        }
+    except Exception as e:
+        print(f"Error listing available dermatologists: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list dermatologists: {str(e)}")
+
+
+@router.post("/ops/consultations/{consultation_id}/assign")
+async def ops_assign_dermatologist(
+    consultation_id: int,
+    dermatologist_id: int = Form(...),
+    notes: str = Form(None),
+    current_user: User = Depends(get_current_ops_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Operations dashboard: Assign a dermatologist to a pending consultation.
+    Requires ops_staff or admin role.
+    """
+    try:
+        consultation = db.query(VideoConsultation).filter(
+            VideoConsultation.id == consultation_id
+        ).first()
+
+        if not consultation:
+            raise HTTPException(status_code=404, detail="Consultation not found")
+
+        if consultation.status not in ["pending_assignment", "scheduled"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot assign dermatologist to consultation with status '{consultation.status}'"
+            )
+
+        dermatologist = db.query(DermatologistProfile).filter(
+            DermatologistProfile.id == dermatologist_id,
+            DermatologistProfile.is_active == True
+        ).first()
+
+        if not dermatologist:
+            raise HTTPException(status_code=404, detail="Dermatologist not found or inactive")
+
+        if not dermatologist.accepts_video_consultations:
+            raise HTTPException(status_code=400, detail="This dermatologist does not accept video consultations")
+
+        # Assign the dermatologist
+        consultation.dermatologist_id = dermatologist_id
+        consultation.status = "scheduled"
+        consultation.video_platform = dermatologist.video_platform or "zoom"
+        consultation.timezone = dermatologist.timezone
+
+        db.commit()
+
+        # Get patient info for response
+        patient = db.query(User).filter(User.id == consultation.user_id).first()
+
+        return {
+            "message": "Dermatologist assigned successfully",
+            "consultation_id": consultation_id,
+            "dermatologist": {
+                "id": dermatologist.id,
+                "full_name": dermatologist.full_name,
+                "credentials": dermatologist.credentials
+            },
+            "patient": {
+                "id": patient.id if patient else None,
+                "username": patient.username if patient else None
+            },
+            "status": "scheduled",
+            "scheduled_datetime": consultation.scheduled_datetime.isoformat() if consultation.scheduled_datetime else None,
+            "next_steps": [
+                "Patient will be notified of the assignment",
+                "Video meeting link will be generated",
+                "Reminder will be sent 24 hours before appointment"
+            ]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"Error assigning dermatologist: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to assign dermatologist: {str(e)}")
+
+
+@router.get("/ops/consultations/{consultation_id}")
+async def ops_get_consultation_details(
+    consultation_id: int,
+    current_user: User = Depends(get_current_ops_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Operations dashboard: Get full details of a consultation for review.
+    Requires ops_staff or admin role.
+    """
+    try:
+        consultation = db.query(VideoConsultation).filter(
+            VideoConsultation.id == consultation_id
+        ).first()
+
+        if not consultation:
+            raise HTTPException(status_code=404, detail="Consultation not found")
+
+        # Get patient info
+        patient = db.query(User).filter(User.id == consultation.user_id).first()
+        patient_profile = db.query(UserProfile).filter(UserProfile.user_id == consultation.user_id).first()
+
+        # Get dermatologist info
+        dermatologist = db.query(DermatologistProfile).filter(
+            DermatologistProfile.id == consultation.dermatologist_id
+        ).first() if consultation.dermatologist_id else None
+
+        # Get related analysis if any
+        analysis = None
+        if consultation.analysis_id:
+            analysis_record = db.query(AnalysisHistory).filter(
+                AnalysisHistory.id == consultation.analysis_id
+            ).first()
+            if analysis_record:
+                analysis = {
+                    "id": analysis_record.id,
+                    "condition": analysis_record.condition,
+                    "confidence": analysis_record.confidence,
+                    "created_at": analysis_record.created_at.isoformat() if analysis_record.created_at else None
+                }
+
+        return {
+            "id": consultation.id,
+            "patient": {
+                "id": patient.id if patient else None,
+                "username": patient.username if patient else "Unknown",
+                "full_name": patient.full_name if patient else "Unknown",
+                "email": patient.email if patient else None,
+                "phone": getattr(patient_profile, 'phone', None) if patient_profile else None
+            },
+            "dermatologist": {
+                "id": dermatologist.id,
+                "full_name": dermatologist.full_name,
+                "credentials": dermatologist.credentials,
+                "specializations": dermatologist.specializations
+            } if dermatologist else None,
+            "consultation_type": consultation.consultation_type,
+            "consultation_reason": consultation.consultation_reason,
+            "scheduled_datetime": consultation.scheduled_datetime.isoformat() if consultation.scheduled_datetime else None,
+            "duration_minutes": consultation.duration_minutes,
+            "timezone": consultation.timezone,
+            "status": consultation.status,
+            "video_platform": consultation.video_platform,
+            "patient_notes": consultation.patient_notes,
+            "patient_questions": consultation.patient_questions,
+            "related_analysis": analysis,
+            "created_at": consultation.created_at.isoformat() if consultation.created_at else None,
+            "updated_at": consultation.updated_at.isoformat() if consultation.updated_at else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting consultation details: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get consultation details: {str(e)}")
 
 
 @router.get("/consultations/{consultation_id}")
@@ -660,7 +1045,7 @@ async def get_referral_details(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get detailed information about a specific referral."""
+    """Get detailed information about a specific referral, including AI analysis data."""
     try:
         referral = db.query(Referral).filter(
             Referral.id == referral_id,
@@ -675,6 +1060,35 @@ async def get_referral_details(
             dermatologist = db.query(DermatologistProfile).filter(
                 DermatologistProfile.id == referral.dermatologist_id
             ).first()
+
+        # Fetch AI analysis data if analysis_id is present
+        ai_analysis = None
+        if referral.analysis_id:
+            analysis = db.query(AnalysisHistory).filter(
+                AnalysisHistory.id == referral.analysis_id
+            ).first()
+            if analysis:
+                ai_analysis = {
+                    "id": analysis.id,
+                    "image_url": analysis.image_url,
+                    "predicted_class": analysis.predicted_class,
+                    "lesion_confidence": analysis.lesion_confidence,
+                    "risk_level": analysis.risk_level,
+                    "body_location": analysis.body_location,
+                    "analysis_date": analysis.created_at.isoformat() if analysis.created_at else None,
+                    # AI Diagnostic Reasoning
+                    "differential_diagnoses": analysis.differential_diagnoses,
+                    "clinical_decision_support": analysis.clinical_decision_support,
+                    "treatment_recommendations": analysis.treatment_recommendations,
+                    # ABCDE Analysis
+                    "abcde_analysis": getattr(analysis, 'red_flag_data', None),
+                    # Multimodal insights
+                    "multimodal_risk_factors": getattr(analysis, 'multimodal_risk_factors', None),
+                    "multimodal_recommendations": getattr(analysis, 'multimodal_recommendations', None),
+                    # Confidence breakdown
+                    "confidence_adjustments": getattr(analysis, 'confidence_adjustments', None),
+                    "data_sources_used": getattr(analysis, 'data_sources_used', None),
+                }
 
         return {
             "id": referral.id,
@@ -694,6 +1108,8 @@ async def get_referral_details(
             "urgency_level": referral.urgency_level,
             "analysis_id": referral.analysis_id,
             "lesion_group_id": referral.lesion_group_id,
+            # Include full AI analysis data for dermatologist review
+            "ai_analysis": ai_analysis,
             "supporting_documents": referral.supporting_documents,
             "status": referral.status,
             "status_notes": referral.status_notes,
@@ -1023,7 +1439,7 @@ async def get_second_opinion_details(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get detailed information about a second opinion request."""
+    """Get detailed information about a second opinion request, including AI analysis data."""
     try:
         opinion = db.query(SecondOpinion).filter(
             SecondOpinion.id == opinion_id,
@@ -1039,6 +1455,35 @@ async def get_second_opinion_details(
                 DermatologistProfile.id == opinion.dermatologist_id
             ).first()
 
+        # Fetch AI analysis data if analysis_id is present
+        ai_analysis = None
+        if opinion.analysis_id:
+            analysis = db.query(AnalysisHistory).filter(
+                AnalysisHistory.id == opinion.analysis_id
+            ).first()
+            if analysis:
+                ai_analysis = {
+                    "id": analysis.id,
+                    "image_url": analysis.image_url,
+                    "predicted_class": analysis.predicted_class,
+                    "lesion_confidence": analysis.lesion_confidence,
+                    "risk_level": analysis.risk_level,
+                    "body_location": analysis.body_location,
+                    "analysis_date": analysis.created_at.isoformat() if analysis.created_at else None,
+                    # AI Diagnostic Reasoning
+                    "differential_diagnoses": analysis.differential_diagnoses,
+                    "clinical_decision_support": analysis.clinical_decision_support,
+                    "treatment_recommendations": analysis.treatment_recommendations,
+                    # ABCDE Analysis
+                    "abcde_analysis": getattr(analysis, 'red_flag_data', None),
+                    # Multimodal insights
+                    "multimodal_risk_factors": getattr(analysis, 'multimodal_risk_factors', None),
+                    "multimodal_recommendations": getattr(analysis, 'multimodal_recommendations', None),
+                    # Confidence breakdown
+                    "confidence_adjustments": getattr(analysis, 'confidence_adjustments', None),
+                    "data_sources_used": getattr(analysis, 'data_sources_used', None),
+                }
+
         return {
             "id": opinion.id,
             "user_id": opinion.user_id,
@@ -1051,6 +1496,8 @@ async def get_second_opinion_details(
             "concerns": opinion.concerns,
             "analysis_id": opinion.analysis_id,
             "lesion_group_id": opinion.lesion_group_id,
+            # Include full AI analysis data for dermatologist review
+            "ai_analysis": ai_analysis,
             "dermatologist": {
                 "id": dermatologist.id if dermatologist else None,
                 "full_name": dermatologist.full_name if dermatologist else None

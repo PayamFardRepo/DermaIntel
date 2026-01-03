@@ -33,6 +33,11 @@ interface Body3DViewerProps {
   selectedLesionId?: number | null;
   viewPreset?: 'front' | 'back' | 'left' | 'right' | 'free';
   showBodyPartLabels?: boolean;
+  // Marker placement mode
+  markerMode?: boolean;
+  onMarkerPlace?: (bodyPart: string, position: THREE.Vector3) => void;
+  // Support multiple temp markers
+  tempMarkerPositions?: THREE.Vector3[];
 }
 
 // Create a stylized procedural human body using basic shapes
@@ -257,6 +262,9 @@ export const Body3DViewer: React.FC<Body3DViewerProps> = ({
   selectedLesionId,
   viewPreset = 'front',
   showBodyPartLabels = false,
+  markerMode = false,
+  onMarkerPlace,
+  tempMarkerPositions = [],
 }) => {
   // Refs for Three.js objects
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -264,6 +272,7 @@ export const Body3DViewer: React.FC<Body3DViewerProps> = ({
   const rendererRef = useRef<Renderer | null>(null);
   const bodyRef = useRef<THREE.Group | null>(null);
   const markersRef = useRef<THREE.Group | null>(null);
+  const tempMarkersRef = useRef<THREE.Mesh[]>([]);
   const glRef = useRef<ExpoWebGLRenderingContext | null>(null);
   const frameIdRef = useRef<number | null>(null);
 
@@ -390,6 +399,35 @@ export const Body3DViewer: React.FC<Body3DViewerProps> = ({
     }
   }, [viewPreset]);
 
+  // Handle temporary markers for marker placement mode (supports multiple)
+  useEffect(() => {
+    if (!sceneRef.current) return;
+
+    // Remove existing temp markers
+    tempMarkersRef.current.forEach((marker) => {
+      sceneRef.current!.remove(marker);
+      marker.geometry.dispose();
+      (marker.material as THREE.Material).dispose();
+    });
+    tempMarkersRef.current = [];
+
+    // Add temp markers for all positions
+    if (markerMode && tempMarkerPositions.length > 0) {
+      tempMarkerPositions.forEach((position) => {
+        const geometry = new THREE.SphereGeometry(0.04, 16, 16);
+        const material = new THREE.MeshBasicMaterial({
+          color: 0x4cc9f0, // Cyan color for new markers
+          transparent: true,
+          opacity: 0.9,
+        });
+        const marker = new THREE.Mesh(geometry, material);
+        marker.position.copy(position);
+        tempMarkersRef.current.push(marker);
+        sceneRef.current!.add(marker);
+      });
+    }
+  }, [tempMarkerPositions, markerMode]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -415,18 +453,28 @@ export const Body3DViewer: React.FC<Body3DViewerProps> = ({
     };
   }, []);
 
-  // Handle tap for lesion/body part selection
+  // Handle tap for lesion/body part selection or marker placement
   const handleTap = useCallback(
     (x: number, y: number) => {
-      if (!cameraRef.current || !sceneRef.current || !glRef.current) return;
+      console.log('handleTap called with:', x, y);
+      console.log('markerMode:', markerMode);
+
+      if (!cameraRef.current || !sceneRef.current || !glRef.current) {
+        console.log('Missing refs - camera:', !!cameraRef.current, 'scene:', !!sceneRef.current, 'gl:', !!glRef.current);
+        return;
+      }
 
       const gl = glRef.current;
-      const viewerWidth = gl.drawingBufferWidth;
-      const viewerHeight = gl.drawingBufferHeight;
+      // Use container dimensions, not drawing buffer (which may be scaled by pixel ratio)
+      const viewerWidth = SCREEN_WIDTH - 32; // Container width from styles
+      const viewerHeight = VIEWER_HEIGHT;
+      console.log('Viewer dimensions:', viewerWidth, viewerHeight);
 
-      // Collect all raycastable objects
+      // Collect all raycastable objects - prioritize body parts for marker mode
       const objects: THREE.Object3D[] = [];
-      if (markersRef.current) {
+
+      // In marker mode, only raycast against body parts
+      if (!markerMode && markersRef.current) {
         markersRef.current.traverse((child) => {
           if (child instanceof THREE.Mesh) {
             objects.push(child);
@@ -440,6 +488,7 @@ export const Body3DViewer: React.FC<Body3DViewerProps> = ({
           }
         });
       }
+      console.log('Raycast objects count:', objects.length);
 
       const intersects = performRaycast(
         x,
@@ -449,11 +498,26 @@ export const Body3DViewer: React.FC<Body3DViewerProps> = ({
         cameraRef.current,
         objects
       );
+      console.log('Intersects count:', intersects.length);
 
       if (intersects.length > 0) {
         const hit = intersects[0];
+        console.log('Hit object:', hit.object.name, 'at point:', hit.point);
 
-        // Check if we hit a lesion marker
+        // In marker mode, place a marker on the body
+        if (markerMode) {
+          const bodyPartName = hit.object.name;
+          console.log('Marker mode - placing marker on:', bodyPartName);
+          if (bodyPartName && onMarkerPlace) {
+            // Calculate position slightly offset from body surface
+            const normal = hit.face?.normal || new THREE.Vector3(0, 0, 1);
+            const offsetPosition = hit.point.clone().add(normal.multiplyScalar(0.03));
+            onMarkerPlace(bodyPartName, offsetPosition);
+          }
+          return;
+        }
+
+        // Check if we hit a lesion marker (not in marker mode)
         let current: THREE.Object3D | null = hit.object;
         while (current) {
           if (current.userData?.isLesionMarker) {
@@ -474,7 +538,7 @@ export const Body3DViewer: React.FC<Body3DViewerProps> = ({
         }
       }
     },
-    [lesions, onLesionSelect, onBodyPartTap]
+    [lesions, onLesionSelect, onBodyPartTap, markerMode, onMarkerPlace]
   );
 
   // Gesture handlers
@@ -485,7 +549,7 @@ export const Body3DViewer: React.FC<Body3DViewerProps> = ({
       const newPolar = polar.value - e.velocityY * 0.0001;
       polar.value = Math.max(0.3, Math.min(Math.PI - 0.3, newPolar));
     })
-    .minDistance(5);
+    .minDistance(10); // Increased to give tap more room
 
   const pinchGesture = Gesture.Pinch()
     .onUpdate((e) => {
@@ -494,26 +558,32 @@ export const Body3DViewer: React.FC<Body3DViewerProps> = ({
     });
 
   const tapGesture = Gesture.Tap()
+    .maxDuration(300) // Must be a quick tap
+    .onStart(() => {
+      console.log('Tap started');
+    })
     .onEnd((e) => {
+      console.log('Tap ended at:', e.x, e.y);
       runOnJS(handleTap)(e.x, e.y);
     });
 
+  // Use Exclusive so tap takes priority over pan
   const composedGestures = Gesture.Simultaneous(
-    Gesture.Race(tapGesture, panGesture),
+    Gesture.Exclusive(tapGesture, panGesture),
     pinchGesture
   );
 
   return (
-    <View style={styles.container}>
+    <GestureHandlerRootView style={styles.container}>
       <GestureDetector gesture={composedGestures}>
-        <View style={styles.glContainer}>
+        <Animated.View style={styles.glContainer}>
           <GLView
             style={styles.glView}
             onContextCreate={onContextCreate}
           />
-        </View>
+        </Animated.View>
       </GestureDetector>
-    </View>
+    </GestureHandlerRootView>
   );
 };
 

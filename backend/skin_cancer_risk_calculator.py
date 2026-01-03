@@ -127,6 +127,38 @@ class GeneticTestFindings:
 
 
 @dataclass
+class LabResultFindings:
+    """Findings from lab results relevant to skin cancer risk"""
+    has_lab_data: bool = False
+    test_date: Optional[date] = None
+    lab_name: Optional[str] = None
+
+    # Vitamin D status (low levels associated with increased cancer risk)
+    vitamin_d_level: Optional[float] = None  # ng/mL
+    vitamin_d_status: str = "unknown"  # deficient (<20), insufficient (20-29), sufficient (30+)
+
+    # Immunosuppression markers
+    wbc_count: Optional[float] = None
+    lymphocyte_count: Optional[float] = None
+    immunosuppressed_by_labs: bool = False
+
+    # Inflammatory markers (chronic inflammation may affect risk)
+    crp_level: Optional[float] = None  # mg/L
+    esr_level: Optional[float] = None  # mm/hr
+    elevated_inflammation: bool = False
+
+    # Autoimmune markers (some autoimmune conditions increase skin cancer risk)
+    ana_positive: bool = False
+
+    # Liver function (affects drug metabolism for treatment)
+    liver_function_normal: bool = True
+
+    # Risk multipliers derived from lab values
+    lab_risk_multiplier: float = 1.0
+    risk_factors_from_labs: List[str] = field(default_factory=list)
+
+
+@dataclass
 class RiskFactorInput:
     """Complete input for risk calculation"""
     # Demographics
@@ -172,6 +204,9 @@ class RiskFactorInput:
 
     # Genetic test findings (from NGS/VCF)
     genetic_findings: Optional[GeneticTestFindings] = None
+
+    # Lab result findings
+    lab_findings: Optional[LabResultFindings] = None
 
 
 @dataclass
@@ -279,6 +314,11 @@ class SkinCancerRiskCalculator:
         medical_history_score = self._calculate_medical_history_score(input_data)
         ai_findings_score = self._calculate_ai_findings_score(input_data)
 
+        # Calculate relative risks first (needed for combination bonus)
+        melanoma_rr = self._calculate_melanoma_relative_risk(input_data)
+        bcc_rr = self._calculate_bcc_relative_risk(input_data)
+        scc_rr = self._calculate_scc_relative_risk(input_data)
+
         # Weight the components
         weights = {
             'genetic': 0.20,
@@ -289,7 +329,7 @@ class SkinCancerRiskCalculator:
             'ai_findings': 0.10,
         }
 
-        overall_score = (
+        base_score = (
             genetic_score * weights['genetic'] +
             phenotype_score * weights['phenotype'] +
             sun_exposure_score * weights['sun_exposure'] +
@@ -298,10 +338,38 @@ class SkinCancerRiskCalculator:
             ai_findings_score * weights['ai_findings']
         )
 
-        # Calculate relative risks
-        melanoma_rr = self._calculate_melanoma_relative_risk(input_data)
-        bcc_rr = self._calculate_bcc_relative_risk(input_data)
-        scc_rr = self._calculate_scc_relative_risk(input_data)
+        # =================================================================
+        # HIGH-RISK COMBINATION BONUS
+        # When multiple high-risk factors combine, the overall risk is greater
+        # than the sum of individual components. Add bonus based on relative risk.
+        # =================================================================
+        combination_bonus = 0
+        max_rr = max(melanoma_rr, bcc_rr, scc_rr)
+
+        # Count high-risk factors
+        high_risk_count = self._count_high_risk_factors(input_data)
+
+        # Bonus based on combined relative risk (logarithmic scaling)
+        if max_rr >= 100:
+            combination_bonus += 30  # Extreme risk (e.g., XP genes)
+        elif max_rr >= 20:
+            combination_bonus += 20  # Very high risk
+        elif max_rr >= 10:
+            combination_bonus += 15  # High risk
+        elif max_rr >= 5:
+            combination_bonus += 10  # Elevated risk
+        elif max_rr >= 2:
+            combination_bonus += 5   # Moderate risk
+
+        # Additional bonus for multiple high-risk factors
+        if high_risk_count >= 5:
+            combination_bonus += 15
+        elif high_risk_count >= 3:
+            combination_bonus += 10
+        elif high_risk_count >= 2:
+            combination_bonus += 5
+
+        overall_score = min(base_score + combination_bonus, 100)
 
         # Calculate lifetime risks
         melanoma_lifetime = self._calculate_lifetime_melanoma_risk(input_data, melanoma_rr)
@@ -603,6 +671,30 @@ class SkinCancerRiskCalculator:
         if input_data.gender == "male":
             score += 5
 
+        # =================================================================
+        # LAB RESULT FINDINGS
+        # =================================================================
+        if input_data.lab_findings and input_data.lab_findings.has_lab_data:
+            lf = input_data.lab_findings
+
+            # Vitamin D deficiency (associated with increased cancer risk)
+            if lf.vitamin_d_status == "deficient":
+                score += 10
+            elif lf.vitamin_d_status == "insufficient":
+                score += 5
+
+            # Immunosuppression from lab values
+            if lf.immunosuppressed_by_labs:
+                score += 15  # Already immunosuppressed adds to existing check
+
+            # Chronic inflammation markers
+            if lf.elevated_inflammation:
+                score += 8
+
+            # Autoimmune markers (some autoimmune conditions increase skin cancer risk)
+            if lf.ana_positive:
+                score += 5
+
         return min(score, 100)
 
     def _calculate_ai_findings_score(self, input_data: RiskFactorInput) -> float:
@@ -646,6 +738,56 @@ class SkinCancerRiskCalculator:
                 score += 10
 
         return min(score, 100)
+
+    def _count_high_risk_factors(self, input_data: RiskFactorInput) -> int:
+        """Count the number of significant high-risk factors present."""
+        count = 0
+
+        # Phenotype factors
+        if input_data.fitzpatrick_type in [FitzpatrickType.TYPE_I, FitzpatrickType.TYPE_II]:
+            count += 1
+        if input_data.natural_hair_color in ["red", "blonde"]:
+            count += 1
+        if input_data.natural_eye_color in ["blue", "green"]:
+            count += 1
+        if input_data.freckles in ["moderate", "many"]:
+            count += 1
+        if input_data.total_mole_count in ["many_51_100", "very_many_100plus"]:
+            count += 1
+
+        # Family history
+        if any(fh.cancer_type == CancerType.MELANOMA for fh in input_data.family_history):
+            count += 1
+
+        # Personal history
+        if any(ph.condition == "melanoma" for ph in input_data.personal_history):
+            count += 1
+        if any(ph.condition in ["bcc", "scc"] for ph in input_data.personal_history):
+            count += 1
+
+        # Behavioral factors
+        if input_data.sunburn_history.childhood_severe_burns >= 1:
+            count += 1
+        if input_data.tanning_bed_use in ["regular", "occasional"]:
+            count += 1
+        if input_data.immunosuppressed:
+            count += 1
+
+        # Genetic findings
+        if input_data.genetic_findings and input_data.genetic_findings.has_genetic_data:
+            if input_data.genetic_findings.high_risk_genes:
+                count += 2  # High-risk genes count double
+            if input_data.genetic_findings.moderate_risk_genes:
+                count += 1
+
+        # Lab findings
+        if input_data.lab_findings and input_data.lab_findings.has_lab_data:
+            if input_data.lab_findings.vitamin_d_status == "deficient":
+                count += 1
+            if input_data.lab_findings.immunosuppressed_by_labs:
+                count += 1
+
+        return count
 
     def _calculate_melanoma_relative_risk(self, input_data: RiskFactorInput) -> float:
         """Calculate relative risk for melanoma compared to baseline population."""
@@ -719,6 +861,13 @@ class SkinCancerRiskCalculator:
                 mc1r_count = len(gf.variants.get("MC1R", []))
                 rr *= (1.0 + (mc1r_count * 0.5))  # ~1.5-2.5x per variant
 
+        # =================================================================
+        # LAB RESULT FINDINGS - Apply lab risk multipliers
+        # =================================================================
+        if input_data.lab_findings and input_data.lab_findings.has_lab_data:
+            lf = input_data.lab_findings
+            rr *= lf.lab_risk_multiplier  # Pre-calculated from vitamin D, immunosuppression, etc.
+
         return rr
 
     def _calculate_bcc_relative_risk(self, input_data: RiskFactorInput) -> float:
@@ -764,6 +913,14 @@ class SkinCancerRiskCalculator:
             # Apply NMSC genetic risk multiplier
             if gf.nmsc_genetic_risk_multiplier > 1.0:
                 rr *= gf.nmsc_genetic_risk_multiplier
+
+        # LAB FINDINGS
+        if input_data.lab_findings and input_data.lab_findings.has_lab_data:
+            lf = input_data.lab_findings
+            # Immunosuppression from labs is especially important for BCC
+            if lf.immunosuppressed_by_labs:
+                rr *= 2.0
+            rr *= lf.lab_risk_multiplier
 
         return rr
 
@@ -811,6 +968,14 @@ class SkinCancerRiskCalculator:
             # Apply NMSC genetic risk multiplier
             if gf.nmsc_genetic_risk_multiplier > 1.0:
                 rr *= gf.nmsc_genetic_risk_multiplier
+
+        # LAB FINDINGS - especially important for SCC
+        if input_data.lab_findings and input_data.lab_findings.has_lab_data:
+            lf = input_data.lab_findings
+            # Immunosuppression dramatically increases SCC risk
+            if lf.immunosuppressed_by_labs:
+                rr *= 3.0  # Higher multiplier for SCC
+            rr *= lf.lab_risk_multiplier
 
         return rr
 
@@ -1089,6 +1254,65 @@ class SkinCancerRiskCalculator:
                     "description": "DNA repair deficiency causes extreme UV sensitivity and skin cancer risk",
                     "relative_risk": 100.0,
                     "source": "genetic_test"
+                })
+
+        # =================================================================
+        # LAB RESULT FINDINGS
+        # =================================================================
+        if input_data.lab_findings and input_data.lab_findings.has_lab_data:
+            lf = input_data.lab_findings
+
+            # Vitamin D status
+            if lf.vitamin_d_status == "deficient":
+                risk_factors.append({
+                    "factor": "Vitamin D deficiency",
+                    "category": "lab_results",
+                    "impact": "moderate",
+                    "description": f"Vitamin D level {lf.vitamin_d_level} ng/mL (deficient <20) - associated with increased cancer risk",
+                    "relative_risk": 1.3,
+                    "source": "lab_test"
+                })
+            elif lf.vitamin_d_status == "insufficient":
+                risk_factors.append({
+                    "factor": "Vitamin D insufficiency",
+                    "category": "lab_results",
+                    "impact": "low",
+                    "description": f"Vitamin D level {lf.vitamin_d_level} ng/mL (insufficient 20-29)",
+                    "relative_risk": 1.1,
+                    "source": "lab_test"
+                })
+
+            # Immunosuppression from labs
+            if lf.immunosuppressed_by_labs:
+                risk_factors.append({
+                    "factor": "Lab-indicated immunosuppression",
+                    "category": "lab_results",
+                    "impact": "high",
+                    "description": "Low WBC or lymphocyte count indicates possible immunosuppression",
+                    "relative_risk": 2.0,
+                    "source": "lab_test"
+                })
+
+            # Inflammation markers
+            if lf.elevated_inflammation:
+                risk_factors.append({
+                    "factor": "Elevated inflammatory markers",
+                    "category": "lab_results",
+                    "impact": "low",
+                    "description": "Elevated CRP/ESR may indicate chronic inflammation",
+                    "relative_risk": 1.15,
+                    "source": "lab_test"
+                })
+
+            # ANA positive
+            if lf.ana_positive:
+                risk_factors.append({
+                    "factor": "Positive ANA",
+                    "category": "lab_results",
+                    "impact": "low",
+                    "description": "Autoimmune markers may affect skin cancer risk and treatment options",
+                    "relative_risk": 1.2,
+                    "source": "lab_test"
                 })
 
         return risk_factors
@@ -1538,6 +1762,28 @@ def calculate_skin_cancer_risk(data: Dict[str, Any]) -> Dict[str, Any]:
             vus_count=genetic_data.get("vus_count", 0),
         )
 
+    # Parse lab result findings
+    lab_data = data.get("lab_findings")
+    lab_findings = None
+    if lab_data:
+        lab_findings = LabResultFindings(
+            has_lab_data=lab_data.get("has_lab_data", True),
+            test_date=lab_data.get("test_date"),
+            lab_name=lab_data.get("lab_name"),
+            vitamin_d_level=lab_data.get("vitamin_d_level"),
+            vitamin_d_status=lab_data.get("vitamin_d_status", "unknown"),
+            wbc_count=lab_data.get("wbc_count"),
+            lymphocyte_count=lab_data.get("lymphocyte_count"),
+            immunosuppressed_by_labs=lab_data.get("immunosuppressed_by_labs", False),
+            crp_level=lab_data.get("crp_level"),
+            esr_level=lab_data.get("esr_level"),
+            elevated_inflammation=lab_data.get("elevated_inflammation", False),
+            ana_positive=lab_data.get("ana_positive", False),
+            liver_function_normal=lab_data.get("liver_function_normal", True),
+            lab_risk_multiplier=lab_data.get("lab_risk_multiplier", 1.0),
+            risk_factors_from_labs=lab_data.get("risk_factors_from_labs", []),
+        )
+
     # Create input object
     input_data = RiskFactorInput(
         age=data.get("age", 40),
@@ -1564,6 +1810,7 @@ def calculate_skin_cancer_risk(data: Dict[str, Any]) -> Dict[str, Any]:
         personal_history=personal_history,
         ai_findings=ai_findings,
         genetic_findings=genetic_findings,
+        lab_findings=lab_findings,
     )
 
     # Calculate risk

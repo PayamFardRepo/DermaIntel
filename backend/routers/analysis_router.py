@@ -40,7 +40,8 @@ from shared import (
     isic_2020_binary_model,
     inflammatory_model, inflammatory_processor, inflammatory_labels,
     infectious_model, infectious_processor, infectious_labels,
-    sanitize_for_json, debug_log
+    sanitize_for_json, debug_log,
+    ensemble_predict,  # Ensemble prediction for improved accuracy
 )
 
 router = APIRouter(tags=["Analysis"])
@@ -384,45 +385,54 @@ async def full_classify(
     binary_confidence = round(torch.max(binary_probs).item(), 4)
     is_lesion = binary_pred == 1
 
-    # Detailed lesion classification with monitoring
-    inputs = lesion_processor(images=image, return_tensors="pt")
+    # ENSEMBLE CLASSIFICATION - combines multiple models for improved accuracy
     lesion_inference_start = time.time()
     lesion_inference_error = None
+    ensemble_result = None
     try:
-        with torch.no_grad():
-            outputs = lesion_model(**inputs)
-            logits = outputs.logits
-            probs = F.softmax(logits, dim=-1)[0]
+        # Use ensemble prediction combining lesion_model + isic_model + malignancy detection
+        ensemble_result = ensemble_predict(image, use_malignancy_boost=True)
         lesion_inference_success = True
     except Exception as e:
         lesion_inference_error = str(e)
         lesion_inference_success = False
-        raise HTTPException(status_code=500, detail=f"Lesion model inference failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Ensemble model inference failed: {e}")
     finally:
         lesion_inference_time = (time.time() - lesion_inference_start) * 1000
-        lesion_conf_for_monitoring = torch.max(probs).item() if lesion_inference_success else None
+        lesion_conf_for_monitoring = ensemble_result["confidence"] if lesion_inference_success else None
         record_inference(
-            model_name="lesion_model",
+            model_name="ensemble_model",
             inference_time_ms=lesion_inference_time,
             success=lesion_inference_success,
             confidence=lesion_conf_for_monitoring,
             error=lesion_inference_error,
-            metadata={"endpoint": "/full_classify/", "user_id": current_user.id}
+            metadata={
+                "endpoint": "/full_classify/",
+                "user_id": current_user.id,
+                "models_used": ensemble_result.get("ensemble_info", {}).get("models_used", []) if ensemble_result else [],
+                "malignancy_score": ensemble_result.get("malignancy_score") if ensemble_result else None,
+            }
         )
 
-    probabilities = {
-        key_map.get(labels[i], labels[i]): round(prob.item(), 4)
-        for i, prob in enumerate(probs)
-    }
+    # Get ensemble results
+    probabilities = ensemble_result["probabilities"]
+    predicted_class = ensemble_result["predicted_class"]
+    lesion_confidence = ensemble_result["confidence"]
+    malignancy_score = ensemble_result.get("malignancy_score")
+    ensemble_info = ensemble_result.get("ensemble_info", {})
 
-    predicted_class = max(probabilities, key=probabilities.get)
-    lesion_confidence = probabilities[predicted_class]
-
-    # Determine risk level
-    high_risk_conditions = ["Melanoma", "Basal Cell Carcinoma", "Actinic Keratoses"]
+    # Determine risk level - now also considers malignancy_score from binary model
+    high_risk_conditions = ["Melanoma", "Basal Cell Carcinoma", "Actinic Keratosis", "Squamous Cell Carcinoma"]
     risk_level = "low"
 
-    if predicted_class in high_risk_conditions:
+    # Use malignancy score to boost risk assessment
+    if malignancy_score and malignancy_score > 0.6:
+        # Binary model thinks it's malignant - elevate risk
+        if malignancy_score > 0.8:
+            risk_level = "very_high"
+        else:
+            risk_level = "high"
+    elif predicted_class in high_risk_conditions:
         if lesion_confidence > 0.7:
             risk_level = "very_high"
         elif lesion_confidence > 0.5:
@@ -623,6 +633,18 @@ async def full_classify(
             profile.last_analysis_date = analysis_record.created_at
         db.commit()
 
+        # Update LesionGroup if analysis is linked to one
+        if lesion_group_id:
+            lesion_group = db.query(LesionGroup).filter(
+                LesionGroup.id == lesion_group_id,
+                LesionGroup.user_id == current_user.id
+            ).first()
+            if lesion_group:
+                lesion_group.total_analyses = (lesion_group.total_analyses or 0) + 1
+                lesion_group.last_analyzed_at = analysis_record.created_at
+                lesion_group.current_risk_level = risk_level
+                db.commit()
+
     # Build risk recommendation based on risk level
     risk_recommendation = "Continue regular skin self-examinations."
     if risk_level == "very_high":
@@ -645,6 +667,14 @@ async def full_classify(
         "probabilities": probabilities,
         "predicted_class": predicted_class,
         "lesion_confidence": lesion_confidence,
+
+        # Ensemble model info - combines multiple models for better accuracy
+        "ensemble_info": {
+            "models_used": ensemble_info.get("models_used", []),
+            "malignancy_score": malignancy_score,
+            "malignancy_boost_applied": ensemble_info.get("malignancy_boost_applied", False),
+            "individual_predictions": ensemble_info.get("individual_predictions", {}),
+        },
 
         # Binary classification
         "binary_probabilities": binary_result,
@@ -834,38 +864,38 @@ async def multimodal_analyze(
     is_lesion = binary_pred == 1
     binary_confidence = round(torch.max(binary_probs).item(), 4)
 
-    # Run lesion classification with monitoring
-    inputs = lesion_processor(images=image, return_tensors="pt")
+    # ENSEMBLE CLASSIFICATION - combines multiple models for improved accuracy
     lesion_inference_start = time.time()
     lesion_inference_error = None
+    ensemble_result = None
     try:
-        with torch.no_grad():
-            outputs = lesion_model(**inputs)
-            logits = outputs.logits
-            probs = F.softmax(logits, dim=-1)[0]
+        # Use ensemble prediction combining lesion_model + isic_model + malignancy detection
+        ensemble_result = ensemble_predict(image, use_malignancy_boost=True)
         lesion_inference_success = True
     except Exception as e:
         lesion_inference_error = str(e)
         lesion_inference_success = False
-        raise HTTPException(status_code=500, detail=f"Lesion model inference failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Ensemble model inference failed: {e}")
     finally:
         lesion_inference_time = (time.time() - lesion_inference_start) * 1000
         record_inference(
-            model_name="lesion_model",
+            model_name="ensemble_model",
             inference_time_ms=lesion_inference_time,
             success=lesion_inference_success,
-            confidence=torch.max(probs).item() if lesion_inference_success else None,
+            confidence=ensemble_result["confidence"] if lesion_inference_success else None,
             error=lesion_inference_error,
-            metadata={"endpoint": "/multimodal-analyze", "user_id": current_user.id}
+            metadata={
+                "endpoint": "/multimodal-analyze",
+                "user_id": current_user.id,
+                "models_used": ensemble_result.get("ensemble_info", {}).get("models_used", []) if ensemble_result else [],
+            }
         )
 
-    probabilities = {
-        key_map.get(labels[i], labels[i]): round(prob.item(), 4)
-        for i, prob in enumerate(probs)
-    }
-
-    predicted_class = max(probabilities, key=probabilities.get)
-    image_confidence = probabilities[predicted_class]
+    # Get ensemble results
+    probabilities = ensemble_result["probabilities"]
+    predicted_class = ensemble_result["predicted_class"]
+    image_confidence = ensemble_result["confidence"]
+    malignancy_score = ensemble_result.get("malignancy_score")
 
     # Build clinical context
     clinical_context = {}
@@ -1047,7 +1077,9 @@ async def get_analysis_detail(
         "image_filename": analysis.image_filename,
         "analysis_type": analysis.analysis_type,
         "predicted_class": analysis.predicted_class,
-        "confidence": analysis.lesion_confidence or analysis.binary_confidence,
+        # For lesion analyses, show cancer type confidence (lesion_confidence)
+        # For non-lesion analyses, show lesion detection confidence (binary_confidence)
+        "confidence": analysis.lesion_confidence if (analysis.is_lesion and analysis.lesion_confidence is not None) else analysis.binary_confidence,
         "lesion_confidence": analysis.lesion_confidence,
         "binary_confidence": analysis.binary_confidence,
         "binary_probabilities": analysis.binary_probabilities,
@@ -1139,7 +1171,9 @@ async def get_explainable_ai(
     return {
         "analysis_id": analysis_id,
         "predicted_class": analysis.predicted_class,
-        "confidence": analysis.lesion_confidence or analysis.binary_confidence,
+        # For lesion analyses, show cancer type confidence (lesion_confidence)
+        # For non-lesion analyses, show lesion detection confidence (binary_confidence)
+        "confidence": analysis.lesion_confidence if (analysis.is_lesion and analysis.lesion_confidence is not None) else analysis.binary_confidence,
         "explanation": {
             "key_factors": [
                 "Pattern analysis based on dermoscopic features",

@@ -182,13 +182,25 @@ class AnalysisHistoryService {
       return { level: 'Very Low', color: '#dc3545' };
     };
 
+    // ALWAYS calculate confidence based on analysis type - don't use pre-calculated confidence field
+    // For lesion analyses: use lesion_confidence (cancer type classification, e.g., 52% BCC)
+    // For non-lesion analyses: use binary_confidence (lesion detection, e.g., 81% is lesion)
+    let displayConfidence;
+    if (analysis.is_lesion && analysis.lesion_confidence != null) {
+      displayConfidence = analysis.lesion_confidence;
+    } else if (analysis.binary_confidence != null) {
+      displayConfidence = analysis.binary_confidence;
+    } else {
+      displayConfidence = analysis.lesion_confidence || 0;
+    }
+
     return {
       id: analysis.id,
       type: analysis.analysis_type,
       isLesion: analysis.is_lesion,
       predictedClass: analysis.predicted_class,
-      confidence: analysis.binary_confidence || analysis.lesion_confidence,
-      confidenceLevel: getConfidenceLevel(analysis.binary_confidence || analysis.lesion_confidence || 0),
+      confidence: displayConfidence,
+      confidenceLevel: getConfidenceLevel(displayConfidence || 0),
       riskLevel: analysis.risk_level,
       riskColor: getRiskColor(analysis.risk_level),
       recommendation: analysis.risk_recommendation,

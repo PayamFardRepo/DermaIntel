@@ -95,6 +95,12 @@ from routers.lab_results_router import router as lab_results_router
 # AI Chat (LLM Integration)
 from routers.ai_chat_router import router as ai_chat_router
 
+# AI Consultation Agent (Conversational Dermatology AI)
+from routers.ai_consultation_router import router as ai_consultation_router
+
+# AI Monitoring Agent (Proactive Lesion Monitoring)
+from routers.ai_monitoring_router import router as ai_monitoring_router
+
 # Data Augmentation (Synthetic Data Generation)
 from routers.data_augmentation_router import router as data_augmentation_router
 
@@ -227,6 +233,12 @@ app.include_router(lab_results_router)
 
 # AI Chat (LLM Integration)
 app.include_router(ai_chat_router)
+
+# AI Consultation Agent (Conversational Dermatology AI)
+app.include_router(ai_consultation_router)
+
+# AI Monitoring Agent (Proactive Lesion Monitoring)
+app.include_router(ai_monitoring_router)
 
 # Data Augmentation (Synthetic Data Generation)
 app.include_router(data_augmentation_router)

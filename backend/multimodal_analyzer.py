@@ -97,6 +97,9 @@ class MultimodalResult:
     risk_factors: List[str] = field(default_factory=list)
     recommendations: List[str] = field(default_factory=list)
 
+    # Genetic risk data
+    genetic_risk_data: Optional[Dict[str, Any]] = None
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert result to dictionary for JSON serialization."""
         return {
@@ -115,7 +118,13 @@ class MultimodalResult:
 
                 "clinical_adjustments": {
                     "applied": self.clinical_adjustments_applied,
-                    "factors": self.clinical_factors,
+                    "factors": [
+                        {
+                            "factor": f.get("name", f.get("factor", "Unknown")),
+                            "multiplier": f.get("relative_risk", f.get("multiplier", 1.0))
+                        }
+                        for f in self.clinical_factors
+                    ],
                     "confidence_delta": self.clinical_confidence_delta
                 },
 
@@ -136,12 +145,15 @@ class MultimodalResult:
                 },
 
                 "confidence_breakdown": self.confidence_breakdown,
-                "adjusted_probabilities": self.adjusted_probabilities
+                "adjusted_probabilities": self.adjusted_probabilities,
+
+                "genetic_risk": self.genetic_risk_data
             },
 
             "risk_level": self.risk_level,
             "risk_factors": self.risk_factors,
-            "recommendations": self.recommendations
+            "recommendations": self.recommendations,
+            "genetic_risk_alert": self.genetic_risk_data
         }
 
 
@@ -275,11 +287,42 @@ class MultimodalAnalyzer:
                     current_probabilities = genetic_adjusted_probs
                     confidence_breakdown["genetic_adjustment"] = round(genetic_delta, 4)
 
-                # Add genetic risk factors
+                # Add genetic risk factors to clinical_factors (for UI display)
                 if genetic_result.get("melanoma_multiplier", 1.0) > 1.0:
+                    result.clinical_adjustments_applied = True
+                    multiplier = genetic_result['melanoma_multiplier']
+
+                    # Add each risk gene as a clinical factor
+                    for gene in genetic_result.get("risk_genes", ["MC1R"]):
+                        result.clinical_factors.append({
+                            "name": f"Genetic Risk ({gene})",
+                            "relative_risk": multiplier
+                        })
+
+                    # Add prominent risk factor warning
                     result.risk_factors.append(
-                        f"Genetic risk: {genetic_result['melanoma_multiplier']:.1f}x melanoma risk (MC1R variants)"
+                        f"⚠️ ELEVATED GENETIC RISK: {multiplier:.1f}x increased melanoma susceptibility"
                     )
+
+                    # Add genetic-specific recommendations
+                    result.recommendations.insert(0,
+                        f"GENETIC ALERT: MC1R variants detected - {multiplier:.1f}x melanoma risk. "
+                        "Enhanced surveillance recommended regardless of current lesion classification."
+                    )
+
+                    if multiplier >= 3.0:
+                        result.recommendations.insert(1,
+                            "HIGH GENETIC RISK: Consider dermatologist referral for full-body skin exam "
+                            "and establish baseline mole mapping due to significantly elevated melanoma risk."
+                        )
+
+                    # Store genetic data for frontend display
+                    result.genetic_risk_data = {
+                        "has_genetic_risk": True,
+                        "melanoma_multiplier": multiplier,
+                        "risk_genes": genetic_result.get("risk_genes", ["MC1R"]),
+                        "risk_level": "high" if multiplier >= 3.0 else "moderate" if multiplier >= 2.0 else "elevated"
+                    }
 
                 logger.info(f"Genetic data integrated: {genetic_result.get('melanoma_multiplier', 1.0):.1f}x melanoma risk")
 
@@ -370,7 +413,8 @@ class MultimodalAnalyzer:
             result.final_confidence,
             result.predicted_class,
             result.risk_factors,
-            result.change_detected
+            result.change_detected,
+            result.genetic_risk_data
         )
 
         # Generate recommendations
@@ -390,7 +434,7 @@ class MultimodalAnalyzer:
         Returns:
             Combined clinical context dictionary
         """
-        from database import UserProfile, User
+        from database import UserProfile, User, FamilyMember
 
         context = form_context.copy() if form_context else {}
 
@@ -416,7 +460,7 @@ class MultimodalAnalyzer:
                 if "immunosuppres" in history_lower:
                     context.setdefault("immunosuppressed", True)
 
-            # Parse family history if available
+            # Parse family history text if available
             if profile.family_history:
                 context["family_history_text"] = profile.family_history
 
@@ -425,6 +469,18 @@ class MultimodalAnalyzer:
                     context.setdefault("family_history_melanoma", True)
                 if "skin cancer" in family_lower:
                     context.setdefault("family_history_skin_cancer", True)
+
+        # Check FamilyMember table for structured family history
+        family_members = db_session.query(FamilyMember).filter_by(user_id=user_id).all()
+        if family_members:
+            for member in family_members:
+                if member.has_melanoma:
+                    context["family_history_melanoma"] = True
+                    # First-degree relatives have higher impact
+                    if member.relationship_type in ["parent", "sibling", "child"]:
+                        context["first_degree_melanoma"] = True
+                if member.has_skin_cancer:
+                    context["family_history_skin_cancer"] = True
 
         if user:
             # Calculate age from date of birth or use stored age
@@ -688,9 +744,10 @@ class MultimodalAnalyzer:
         confidence: float,
         predicted_class: str,
         risk_factors: List[str],
-        change_detected: bool
+        change_detected: bool,
+        genetic_risk_data: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Calculate overall risk level based on all factors."""
+        """Calculate overall risk level based on all factors including genetic risk."""
         # High-risk conditions
         high_risk_conditions = [
             "melanoma", "squamous_cell_carcinoma", "basal_cell_carcinoma",
@@ -718,6 +775,16 @@ class MultimodalAnalyzer:
         # Add risk from change detection
         if change_detected:
             risk_score += 15
+
+        # IMPORTANT: Add significant risk from genetic factors
+        if genetic_risk_data and genetic_risk_data.get("has_genetic_risk"):
+            multiplier = genetic_risk_data.get("melanoma_multiplier", 1.0)
+            if multiplier >= 3.0:
+                risk_score += 30  # High genetic risk adds significant score
+            elif multiplier >= 2.0:
+                risk_score += 20  # Moderate genetic risk
+            elif multiplier > 1.0:
+                risk_score += 10  # Elevated genetic risk
 
         # Categorize
         if risk_score >= 60:

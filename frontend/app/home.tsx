@@ -2,7 +2,7 @@ import React, {useState, useRef, useEffect, useMemo, memo} from 'react';
 import { View, Text, StyleSheet, TextInput, Button, Pressable, Image, ActivityIndicator, ScrollView, Dimensions, Animated, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from "react-native";
 import { Linking } from 'react-native';
@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { API_ENDPOINTS, REQUEST_TIMEOUT } from '../config';
 import { BinaryClassificationResponse, FullClassificationResponse, ImagePickerAsset } from '../types';
 import ImageAnalysisService from '../ImageAnalysisService';
+import AuthService from '../services/AuthService';
 import { useAuth } from '../contexts/AuthContext';
 import BodyMapSelector from '../components/BodyMapSelector';
 import { HelpTooltip, InlineHelp, HelpBadge } from '../components/HelpTooltip';
@@ -34,6 +35,7 @@ export default function PhotoScreen() {
   const { user, logout, isAuthenticated } = useAuth();
   const { settings: userSettings } = useUserSettings();
   const router = useRouter();
+  const { bodyLocation } = useLocalSearchParams<{ bodyLocation?: string }>();
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -41,6 +43,93 @@ export default function PhotoScreen() {
       router.replace('/');
     }
   }, [isAuthenticated]);
+
+  // Pre-populate body location from 3D body map navigation
+  useEffect(() => {
+    if (bodyLocation) {
+      // Handle multiple locations (comma-separated from 3D body map)
+      const locations = bodyLocation.split(',').map(loc => loc.trim()).filter(Boolean);
+      const primaryLocation = locations[0];
+
+      // Detect if this is a back location (for 2D body map view switching)
+      const isBackLocation = primaryLocation.includes('back');
+      const bodyView = isBackLocation ? 'back' : 'front';
+
+      // Parse primary location string to determine body_side and body_sublocation
+      let parsedLocation = primaryLocation;
+      let bodySide = 'center';
+      let bodySublocation = '';
+
+      // Handle left/right sides
+      if (primaryLocation.includes('left_') || primaryLocation.startsWith('left')) {
+        bodySide = 'left';
+        parsedLocation = primaryLocation.replace('left_', '').replace('left', '');
+      } else if (primaryLocation.includes('right_') || primaryLocation.startsWith('right')) {
+        bodySide = 'right';
+        parsedLocation = primaryLocation.replace('right_', '').replace('right', '');
+      }
+
+      // Handle upper/lower sublocations
+      if (primaryLocation.includes('_upper') || primaryLocation.includes('upper_')) {
+        bodySublocation = 'upper';
+        // Don't strip _upper for back regions - keep as back_upper for matching
+        if (!isBackLocation) {
+          parsedLocation = parsedLocation.replace('_upper', '').replace('upper_', '');
+        }
+      } else if (primaryLocation.includes('_lower') || primaryLocation.includes('lower_')) {
+        bodySublocation = 'lower';
+        // Don't strip _lower for back regions - keep as back_lower for matching
+        if (!isBackLocation) {
+          parsedLocation = parsedLocation.replace('_lower', '').replace('lower_', '');
+        }
+      }
+
+      // Default coordinates based on general body regions
+      const defaultCoords: { [key: string]: { x: number; y: number } } = {
+        head: { x: 50, y: 8 },
+        face: { x: 50, y: 10 },
+        neck: { x: 50, y: 16 },
+        chest: { x: 50, y: 28 },
+        torso: { x: 50, y: 34 },
+        abdomen: { x: 50, y: 40 },
+        back: { x: 50, y: 34 },
+        back_upper: { x: 50, y: 28 },
+        back_lower: { x: 50, y: 40 },
+        shoulder: { x: bodySide === 'left' ? 25 : bodySide === 'right' ? 75 : 50, y: 22 },
+        arm: { x: bodySide === 'left' ? 18 : bodySide === 'right' ? 82 : 50, y: 37 },
+        forearm: { x: bodySide === 'left' ? 15 : bodySide === 'right' ? 85 : 50, y: 42 },
+        hand: { x: bodySide === 'left' ? 12 : bodySide === 'right' ? 88 : 50, y: 50 },
+        hip: { x: bodySide === 'left' ? 42 : bodySide === 'right' ? 58 : 50, y: 48 },
+        groin: { x: 50, y: 48 },
+        thigh: { x: bodySide === 'left' ? 42 : bodySide === 'right' ? 58 : 50, y: 60 },
+        leg: { x: bodySide === 'left' ? 42 : bodySide === 'right' ? 58 : 50, y: 75 },
+        knee: { x: bodySide === 'left' ? 42 : bodySide === 'right' ? 58 : 50, y: 70 },
+        foot: { x: bodySide === 'left' ? 42 : bodySide === 'right' ? 58 : 50, y: 90 },
+      };
+
+      const coords = defaultCoords[parsedLocation || 'torso'] || { x: 50, y: 50 };
+
+      setBodyMapData({
+        body_location: parsedLocation || primaryLocation,
+        body_sublocation: bodySublocation || undefined,
+        body_side: bodySide,
+        body_map_x: coords.x,
+        body_map_y: coords.y,
+        body_view: bodyView, // 'front' or 'back' for 2D body map
+        // Store all locations for reference
+        all_locations: locations,
+      });
+
+      console.log('Pre-populated body location from 3D map:', bodyLocation, '→', {
+        body_location: parsedLocation || primaryLocation,
+        body_side: bodySide,
+        body_sublocation: bodySublocation,
+        body_view: bodyView,
+        all_locations: locations,
+      });
+    }
+  }, [bodyLocation]);
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isClassifying, setIsClassifying] = useState<boolean>(false);
   const [progressMessage, setProgressMessage] = useState<string>("");
@@ -131,6 +220,8 @@ export default function PhotoScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
   const spinAnim = useRef(new Animated.Value(0)).current;
+  const resultsScrollViewRef = useRef<ScrollView>(null);
+  const scrollPositionRef = useRef<number>(0);
 
   // Logout handler
   const handleLogout = async () => {
@@ -213,15 +304,191 @@ export default function PhotoScreen() {
     setBodyMapData(location);
   };
 
-  const proceedToClassify = () => {
+  // Fetch profile data, family history, and medical history for clinical context
+  const fetchProfileForClinicalContext = async (): Promise<ClinicalContext> => {
+    try {
+      const { API_BASE_URL } = require('../config');
+      const token = AuthService.getToken();
+
+      // Fetch profile and family history in parallel
+      const [profileResponse, familyResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/me/extended`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }),
+        fetch(`${API_BASE_URL}/family-history`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }).catch(() => null), // Don't fail if family history not available
+      ]);
+
+      let age: number | undefined;
+      let skinType: string | undefined;
+      let familyHistoryMelanoma = false;
+      let familyHistorySkinCancer = false;
+      let personalHistoryMelanoma = false;
+      let personalHistorySkinCancer = false;
+      let personalHistoryAtypicalMoles = false;
+      let historySevereSunburns = false;
+      let usesTanningBeds = false;
+      let immunosuppressed = false;
+      let manyMoles = false;
+
+      // Process profile data
+      if (profileResponse.ok) {
+        const data = await profileResponse.json();
+        const profile = data.profile || {};
+
+        // Calculate age from date_of_birth
+        if (profile.date_of_birth) {
+          const birthDate = new Date(profile.date_of_birth);
+          const today = new Date();
+          age = today.getFullYear() - birthDate.getFullYear();
+          const monthDiff = today.getMonth() - birthDate.getMonth();
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+          }
+        }
+
+        skinType = profile.skin_type;
+
+        // Parse medical history text for keywords
+        const medicalHistory = (profile.medical_history || '').toLowerCase();
+        const familyHistory = (profile.family_history || '').toLowerCase();
+
+        // Check for personal history keywords
+        if (medicalHistory.includes('melanoma')) {
+          personalHistoryMelanoma = true;
+        }
+        if (medicalHistory.includes('skin cancer') || medicalHistory.includes('bcc') ||
+            medicalHistory.includes('scc') || medicalHistory.includes('basal cell') ||
+            medicalHistory.includes('squamous cell')) {
+          personalHistorySkinCancer = true;
+        }
+        if (medicalHistory.includes('atypical') || medicalHistory.includes('dysplastic') ||
+            medicalHistory.includes('abnormal mole')) {
+          personalHistoryAtypicalMoles = true;
+        }
+        if (medicalHistory.includes('sunburn') || medicalHistory.includes('sun burn')) {
+          historySevereSunburns = true;
+        }
+        if (medicalHistory.includes('tanning bed') || medicalHistory.includes('tanning salon')) {
+          usesTanningBeds = true;
+        }
+        if (medicalHistory.includes('immunosuppressed') || medicalHistory.includes('transplant') ||
+            medicalHistory.includes('immunocompromised')) {
+          immunosuppressed = true;
+        }
+        if (medicalHistory.includes('many moles') || medicalHistory.includes('multiple moles') ||
+            medicalHistory.includes('50 moles') || medicalHistory.includes('numerous moles')) {
+          manyMoles = true;
+        }
+
+        // Check family history text
+        if (familyHistory.includes('melanoma')) {
+          familyHistoryMelanoma = true;
+        }
+        if (familyHistory.includes('skin cancer')) {
+          familyHistorySkinCancer = true;
+        }
+      }
+
+      // Process family members data
+      if (familyResponse && familyResponse.ok) {
+        const familyData = await familyResponse.json();
+        const familyMembers = familyData.family_members || [];
+
+        // Check if any family member has melanoma or skin cancer
+        for (const member of familyMembers) {
+          if (member.has_melanoma) {
+            familyHistoryMelanoma = true;
+          }
+          if (member.has_skin_cancer) {
+            familyHistorySkinCancer = true;
+          }
+        }
+      }
+
+      return {
+        patient_age: age,
+        fitzpatrick_skin_type: skinType,
+        // Family history
+        family_history_melanoma: familyHistoryMelanoma,
+        family_history_skin_cancer: familyHistorySkinCancer,
+        // Personal history
+        personal_history_melanoma: personalHistoryMelanoma,
+        personal_history_skin_cancer: personalHistorySkinCancer,
+        personal_history_atypical_moles: personalHistoryAtypicalMoles,
+        // Risk factors
+        history_severe_sunburns: historySevereSunburns,
+        uses_tanning_beds: usesTanningBeds,
+        immunosuppressed: immunosuppressed,
+        many_moles: manyMoles,
+      };
+    } catch (error) {
+      console.error('Error fetching profile for clinical context:', error);
+    }
+    return {};
+  };
+
+  const proceedToClassify = async () => {
     setShowBodyMapSelector(false);
-    // Show clinical context form next
+
+    // Fetch profile data to pre-populate clinical context
+    const profileContext = await fetchProfileForClinicalContext();
+
+    // If bodyLocation was passed from 3D body map, inject it into context
+    if (bodyLocation) {
+      profileContext.body_location = bodyLocation;
+    }
+
+    // Always show the clinical context form so user can enter symptoms and other details
+    // Pre-populate with available profile data (age, skin type)
+    setClinicalContext(profileContext);
     setShowClinicalContext(true);
   };
 
-  const handleClinicalContextSubmit = (context: ClinicalContext) => {
+  // Save age and skin_type to profile if provided
+  const saveToProfile = async (context: ClinicalContext) => {
+    if (!context.patient_age && !context.fitzpatrick_skin_type) return;
+
+    try {
+      const { API_BASE_URL } = require('../config');
+      const token = AuthService.getToken();
+
+      const profileUpdate: any = {};
+
+      // Convert age to date_of_birth (approximate - use Jan 1 of birth year)
+      if (context.patient_age) {
+        const birthYear = new Date().getFullYear() - context.patient_age;
+        profileUpdate.date_of_birth = `${birthYear}-01-01`;
+      }
+
+      if (context.fitzpatrick_skin_type) {
+        profileUpdate.skin_type = context.fitzpatrick_skin_type;
+      }
+
+      await fetch(`${API_BASE_URL}/profile`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileUpdate),
+      });
+
+      console.log('Clinical context saved to profile');
+    } catch (error) {
+      console.error('Error saving clinical context to profile:', error);
+      // Don't block analysis if save fails
+    }
+  };
+
+  const handleClinicalContextSubmit = async (context: ClinicalContext) => {
     setClinicalContext(context);
     setShowClinicalContext(false);
+
+    // Save age and skin_type to profile for future use
+    saveToProfile(context);
+
     performClassification(context);
   };
 
@@ -432,8 +699,12 @@ export default function PhotoScreen() {
     setShowAiExplanation(true);
 
     try {
-      const token = await require('expo-secure-store').getItemAsync('auth_token');
       const { API_BASE_URL } = require('../config');
+      const token = AuthService.getToken();
+
+      if (!token) {
+        throw new Error('Authentication required. Please log in again.');
+      }
 
       const formData = new FormData();
       formData.append('condition', condition);
@@ -464,6 +735,38 @@ export default function PhotoScreen() {
     }
   };
 
+  // Helper function to restore scroll position after state changes
+  const restoreScrollPosition = () => {
+    setTimeout(() => {
+      if (resultsScrollViewRef.current && scrollPositionRef.current > 0) {
+        resultsScrollViewRef.current.scrollTo({
+          y: scrollPositionRef.current,
+          animated: false,
+        });
+      }
+    }, 50);
+  };
+
+  // Function to toggle reasoning visibility without scrolling
+  const toggleReasoning = () => {
+    const savedPosition = scrollPositionRef.current;
+    if (showReasoning) {
+      setShowReasoning(false);
+    } else {
+      setShowReasoning(true);
+      fetchDifferentialReasoning();
+    }
+    // Restore scroll position after state change
+    setTimeout(() => {
+      if (resultsScrollViewRef.current) {
+        resultsScrollViewRef.current.scrollTo({
+          y: savedPosition,
+          animated: false,
+        });
+      }
+    }, 50);
+  };
+
   // Function to fetch differential diagnosis reasoning (chain-of-thought)
   const fetchDifferentialReasoning = async () => {
     const diagnosis = professionalData?.diagnosis || analysisResult?.fullResult?.predicted_class;
@@ -472,13 +775,19 @@ export default function PhotoScreen() {
       return;
     }
 
+    const savedPosition = scrollPositionRef.current;
     setIsLoadingReasoning(true);
     setReasoningError(null);
-    setShowReasoning(true);
+    // Don't set showReasoning here - it's handled by toggleReasoning
 
     try {
-      const token = await require('expo-secure-store').getItemAsync('auth_token');
       const { API_BASE_URL } = require('../config');
+      const token = AuthService.getToken();
+
+      // Check if token exists
+      if (!token) {
+        throw new Error('Authentication required. Please log in again.');
+      }
 
       const formData = new FormData();
       formData.append('primary_diagnosis', diagnosis);
@@ -523,9 +832,12 @@ export default function PhotoScreen() {
 
       const data = await response.json();
       setDifferentialReasoning(data.reasoning);
+      // Restore scroll position after content loads
+      restoreScrollPosition();
     } catch (error: any) {
       console.error('Differential reasoning error:', error);
       setReasoningError(error.message || 'Failed to load reasoning. Please try again.');
+      restoreScrollPosition();
     } finally {
       setIsLoadingReasoning(false);
     }
@@ -1952,9 +2264,14 @@ export default function PhotoScreen() {
         </View>
 
         <ScrollView
+          ref={resultsScrollViewRef}
           style={styles.scrollContainer}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={true}
+          onScroll={(event) => {
+            scrollPositionRef.current = event.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}
         >
           {imageUri && (
             <Image
@@ -2157,6 +2474,27 @@ export default function PhotoScreen() {
                 </Text>
               </View>
 
+              {/* Genetic Risk Alert - show prominently if present */}
+              {(professionalData?.multimodalAnalysis?.genetic_risk?.has_genetic_risk ||
+                analysisResult?.fullResult?.multimodal_analysis?.genetic_risk?.has_genetic_risk ||
+                analysisResult?.fullResult?.genetic_risk_alert?.has_genetic_risk) && (
+                <View style={styles.geneticRiskAlert}>
+                  <View style={styles.geneticRiskHeader}>
+                    <Text style={styles.geneticRiskIcon}>⚠️</Text>
+                    <Text style={styles.geneticRiskTitle}>GENETIC RISK ALERT</Text>
+                  </View>
+                  <Text style={styles.geneticRiskMultiplier}>
+                    {(professionalData?.multimodalAnalysis?.genetic_risk?.melanoma_multiplier ||
+                      analysisResult?.fullResult?.multimodal_analysis?.genetic_risk?.melanoma_multiplier ||
+                      analysisResult?.fullResult?.genetic_risk_alert?.melanoma_multiplier || 1).toFixed(1)}x
+                  </Text>
+                  <Text style={styles.geneticRiskLabel}>Increased Melanoma Risk</Text>
+                  <Text style={styles.geneticRiskGenes}>
+                    MC1R variants detected - Enhanced surveillance recommended
+                  </Text>
+                </View>
+              )}
+
               {/* Clinical Factors - only show if there are adjustments */}
               {(professionalData?.multimodalAnalysis?.clinical_adjustments?.factors?.length > 0 ||
                 analysisResult?.fullResult?.multimodal_analysis?.clinical_adjustments?.factors?.length > 0) && (
@@ -2250,13 +2588,7 @@ export default function PhotoScreen() {
               {/* Show Reasoning Button */}
               <Pressable
                 style={[styles.button, styles.reasoningButton]}
-                onPress={() => {
-                  if (showReasoning) {
-                    setShowReasoning(false);
-                  } else {
-                    fetchDifferentialReasoning();
-                  }
-                }}
+                onPress={toggleReasoning}
               >
                 <Ionicons
                   name={showReasoning ? "chevron-up-circle" : "bulb-outline"}
@@ -2295,7 +2627,18 @@ export default function PhotoScreen() {
                   <Text style={styles.reasoningErrorText}>{reasoningError}</Text>
                   <Pressable
                     style={styles.reasoningRetryButton}
-                    onPress={fetchDifferentialReasoning}
+                    onPress={() => {
+                      const savedPosition = scrollPositionRef.current;
+                      fetchDifferentialReasoning();
+                      setTimeout(() => {
+                        if (resultsScrollViewRef.current) {
+                          resultsScrollViewRef.current.scrollTo({
+                            y: savedPosition,
+                            animated: false,
+                          });
+                        }
+                      }, 50);
+                    }}
                   >
                     <Text style={styles.reasoningRetryText}>Try Again</Text>
                   </Pressable>
@@ -2554,6 +2897,9 @@ export default function PhotoScreen() {
             </View>
 
             <ScrollView style={styles.menuContent}>
+              {/* Hide patient-specific menus for ops roles */}
+              {!(user?.role === 'ops_staff' || user?.role === 'operations') && (
+              <>
               {/* 1. Health Profile */}
               <MenuCategory title="Health Profile" icon="👤" count={5}>
                 <Pressable
@@ -2614,7 +2960,29 @@ export default function PhotoScreen() {
               </MenuCategory>
 
               {/* 2. Patient Monitoring */}
-              <MenuCategory title="Patient Monitoring" icon="🔍" count={8}>
+              <MenuCategory title="Patient Monitoring" icon="🔍" count={10}>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/ai-monitoring' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>👁️</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>AI Monitoring Agent</Text>
+                    <Text style={styles.menuItemSubtext}>Proactive lesion tracking with AI insights</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/risk-calculator' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🧮</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Risk Calculator</Text>
+                    <Text style={styles.menuItemSubtext}>Comprehensive skin cancer risk assessment</Text>
+                  </View>
+                </Pressable>
                 <Pressable
                   style={styles.menuItemCompact}
                   onPress={() => { setShowMenu(false); router.push('/lesion-tracking'); }}
@@ -2706,7 +3074,29 @@ export default function PhotoScreen() {
               </MenuCategory>
 
               {/* 3. Consult & Diagnosis */}
-              <MenuCategory title="Consult & Diagnosis" icon="👨‍⚕️" count={4}>
+              <MenuCategory title="Consult & Diagnosis" icon="👨‍⚕️" count={6}>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/ai-consultation' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>🩺</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>AI Consultation</Text>
+                    <Text style={styles.menuItemSubtext}>Conversational AI dermatologist with visual analysis</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItemCompact}
+                  onPress={() => { setShowMenu(false); router.push('/dermatologist-integration?tab=consultations&action=request' as any); }}
+                  disabled={isLoading || isClassifying}
+                >
+                  <Text style={styles.menuItemIconSmall}>📞</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>Teledermatology</Text>
+                    <Text style={styles.menuItemSubtext}>Request a consultation with a dermatologist</Text>
+                  </View>
+                </Pressable>
                 <Pressable
                   style={styles.menuItemCompact}
                   onPress={() => { setShowMenu(false); router.push('/advanced-telederm' as any); }}
@@ -2848,6 +3238,8 @@ export default function PhotoScreen() {
                   </View>
                 </Pressable>
               </MenuCategory>
+              </>
+              )}
 
               {/* 6. Billing & Documentation */}
               <MenuCategory title="Billing & Documentation" icon="💳" count={6}>
@@ -3000,7 +3392,24 @@ export default function PhotoScreen() {
                 </Pressable>
               </MenuCategory>
 
-              {/* 8. Account */}
+              {/* 8. Platform Operations - Only visible to ops_staff and admin */}
+              {(user?.role === 'admin' || user?.role === 'ops_staff' || user?.role === 'operations') && (
+                <MenuCategory title="Platform Operations" icon="🏥" count={1}>
+                  <Pressable
+                    style={styles.menuItemCompact}
+                    onPress={() => { setShowMenu(false); router.push('/ops-dashboard' as any); }}
+                    disabled={isLoading || isClassifying}
+                  >
+                    <Text style={styles.menuItemIconSmall}>📋</Text>
+                    <View style={styles.menuItemTextContainer}>
+                      <Text style={styles.menuItemText}>Operations Dashboard</Text>
+                      <Text style={styles.menuItemSubtext}>Manage consultation requests & assignments</Text>
+                    </View>
+                  </Pressable>
+                </MenuCategory>
+              )}
+
+              {/* 9. Account */}
               <MenuCategory title="Account" icon="⚙️" count={2}>
                 <Pressable
                   style={styles.menuItemCompact}
@@ -5756,5 +6165,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#0ea5e9',
+  },
+  // Genetic Risk Alert Styles
+  geneticRiskAlert: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 2,
+    borderColor: '#ef4444',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  geneticRiskHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  geneticRiskIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  geneticRiskTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#dc2626',
+    letterSpacing: 1,
+  },
+  geneticRiskMultiplier: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#dc2626',
+    marginVertical: 4,
+  },
+  geneticRiskLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#991b1b',
+    marginBottom: 8,
+  },
+  geneticRiskGenes: {
+    fontSize: 12,
+    color: '#7f1d1d',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });

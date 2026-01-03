@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import uuid
 
-from database import get_db, User, AnalysisHistory, GeneticTestResult, GeneticVariant
+from database import get_db, User, AnalysisHistory, GeneticTestResult, GeneticVariant, LabResults
 from auth import get_current_active_user
 from skin_cancer_risk_calculator import calculate_skin_cancer_risk
 
@@ -663,6 +663,86 @@ async def calculate_comprehensive_risk(
                     "vus_count": vus_count,
                 }
 
+        # Auto-populate lab result findings from database if not provided
+        if "lab_findings" not in input_data or not input_data["lab_findings"]:
+            # Get the most recent lab results for this user
+            latest_lab_result = db.query(LabResults).filter(
+                LabResults.user_id == current_user.id
+            ).order_by(LabResults.test_date.desc()).first()
+
+            if latest_lab_result:
+                # Calculate vitamin D status
+                vitamin_d_status = "unknown"
+                vitamin_d_risk_factor = 1.0
+                risk_factors_from_labs = []
+
+                if latest_lab_result.vitamin_d is not None:
+                    if latest_lab_result.vitamin_d < 20:
+                        vitamin_d_status = "deficient"
+                        vitamin_d_risk_factor = 1.3  # 30% increased risk
+                        risk_factors_from_labs.append("Vitamin D deficiency (<20 ng/mL)")
+                    elif latest_lab_result.vitamin_d < 30:
+                        vitamin_d_status = "insufficient"
+                        vitamin_d_risk_factor = 1.1  # 10% increased risk
+                        risk_factors_from_labs.append("Vitamin D insufficiency (20-29 ng/mL)")
+                    else:
+                        vitamin_d_status = "sufficient"
+
+                # Check for immunosuppression markers
+                immunosuppressed_by_labs = False
+                if latest_lab_result.wbc is not None and latest_lab_result.wbc < 4.0:
+                    immunosuppressed_by_labs = True
+                    risk_factors_from_labs.append("Low white blood cell count (leukopenia)")
+                if latest_lab_result.lymphocytes is not None and latest_lab_result.lymphocytes < 1.0:
+                    immunosuppressed_by_labs = True
+                    risk_factors_from_labs.append("Low lymphocyte count (lymphopenia)")
+
+                # Check inflammatory markers
+                elevated_inflammation = False
+                if latest_lab_result.crp is not None and latest_lab_result.crp > 3.0:
+                    elevated_inflammation = True
+                    risk_factors_from_labs.append("Elevated CRP (chronic inflammation)")
+                if latest_lab_result.esr is not None and latest_lab_result.esr > 20:
+                    elevated_inflammation = True
+                    risk_factors_from_labs.append("Elevated ESR (inflammation marker)")
+
+                # Check autoimmune markers
+                ana_positive = latest_lab_result.ana_positive if latest_lab_result.ana_positive else False
+                if ana_positive:
+                    risk_factors_from_labs.append("Positive ANA (autoimmune marker)")
+
+                # Check liver function
+                liver_function_normal = True
+                if latest_lab_result.alt is not None and latest_lab_result.alt > 56:
+                    liver_function_normal = False
+                if latest_lab_result.ast is not None and latest_lab_result.ast > 40:
+                    liver_function_normal = False
+
+                # Calculate overall lab risk multiplier
+                lab_risk_multiplier = vitamin_d_risk_factor
+                if immunosuppressed_by_labs:
+                    lab_risk_multiplier *= 2.0  # Immunosuppression doubles skin cancer risk
+                if ana_positive:
+                    lab_risk_multiplier *= 1.2  # Some autoimmune conditions increase risk
+
+                input_data["lab_findings"] = {
+                    "has_lab_data": True,
+                    "test_date": str(latest_lab_result.test_date) if latest_lab_result.test_date else None,
+                    "lab_name": latest_lab_result.lab_name,
+                    "vitamin_d_level": latest_lab_result.vitamin_d,
+                    "vitamin_d_status": vitamin_d_status,
+                    "wbc_count": latest_lab_result.wbc,
+                    "lymphocyte_count": latest_lab_result.lymphocytes,
+                    "immunosuppressed_by_labs": immunosuppressed_by_labs,
+                    "crp_level": latest_lab_result.crp,
+                    "esr_level": latest_lab_result.esr,
+                    "elevated_inflammation": elevated_inflammation,
+                    "ana_positive": ana_positive,
+                    "liver_function_normal": liver_function_normal,
+                    "lab_risk_multiplier": lab_risk_multiplier,
+                    "risk_factors_from_labs": risk_factors_from_labs,
+                }
+
         # Include AI findings if requested
         if input_data.get("include_ai_findings", False):
             recent_analyses = db.query(AnalysisHistory).filter(
@@ -770,7 +850,13 @@ async def calculate_comprehensive_risk(
                 "interpretation": _interpret_relative_risk(risk_result.get("relative_risks", {}).get("squamous_cell_carcinoma", 1.0))
             },
             "component_scores": risk_result.get("component_scores", {}),
-            "risk_factors": risk_result["risk_factors"],
+            "risk_factors": [
+                {
+                    **factor,
+                    "risk_multiplier": factor.get("relative_risk", 1.0)  # Map for frontend compatibility
+                }
+                for factor in risk_result["risk_factors"]
+            ],
             "recommendations": risk_result["recommendations"],
             "screening_recommendations": risk_result.get("screening_recommendations", {}),
             "comparison_to_previous": {

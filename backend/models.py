@@ -19,6 +19,7 @@ class UserResponse(UserBase):
     account_type: Optional[str] = "personal"
     display_mode: Optional[str] = "simple"
     is_verified_professional: Optional[bool] = False
+    role: Optional[str] = "patient"  # patient, dermatologist, admin, ops_staff
 
     class Config:
         from_attributes = True
@@ -30,6 +31,7 @@ class UserLogin(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    role: Optional[str] = "patient"  # User role: patient, dermatologist, admin, ops_staff
 
 class TokenData(BaseModel):
     username: Optional[str] = None
@@ -81,6 +83,13 @@ class UserProfileBase(BaseModel):
     ethnicity: Optional[str] = None
     notification_preferences: Optional[Dict[str, Any]] = None
     privacy_settings: Optional[Dict[str, Any]] = None
+    # Phenotype characteristics for risk assessment
+    natural_hair_color: Optional[str] = None  # red, blonde, light_brown, dark_brown, black
+    natural_eye_color: Optional[str] = None   # blue, green, hazel, brown
+    freckles: Optional[str] = None            # none, few, some, many
+    # Family history of skin conditions
+    family_history_skin_cancer: Optional[bool] = None
+    family_history_melanoma: Optional[bool] = None
 
 
 class UserProfileCreate(UserProfileBase):
